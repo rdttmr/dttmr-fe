@@ -1,5 +1,10 @@
 # dttmr-fe
 
+A offline-first progressive web app written with Vue
+
+Including user authorization (using JWT), shared lists and a sandbox
+for myself to experiment with Go and TypeScript/Vue.
+
 ## Project Setup
 
 ```sh
