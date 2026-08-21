@@ -145,13 +145,10 @@ export const useListsStore = defineStore('lists', () => {
   }
 
   async function addUserToList(listId: string, email: string) {
-    await enqueue({
-      type: 'addUserToList',
-      payload: { list_id: listId, email },
-      localListId: listId,
-    })
-    await refresh()
-    void sync()
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new Error('Cannot share list while offline')
+    }
+    await addUserToListApi({ list_id: listId, email })
   }
 
   async function removeUserFromList(listId: string, email: string) {
@@ -288,10 +285,6 @@ export const useListsStore = defineStore('lists', () => {
           entry.payload as { is_completed: boolean },
         )
         await db.listItems.update(entry.localListItemId, { pendingSync: false })
-        break
-      }
-      case 'addUserToList': {
-        await addUserToListApi(entry.payload as { list_id: string; email: string })
         break
       }
       case 'removeUserFromList': {

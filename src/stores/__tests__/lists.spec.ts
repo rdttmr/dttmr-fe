@@ -319,4 +319,40 @@ describe('useListsStore', () => {
     expect(listsApiMocks.deleteListItemApi).toHaveBeenCalledWith('item-to-delete')
     expect(store.pendingCount).toBe(0)
   })
+
+  it('shares list with server when online without adding to sync queue', async () => {
+    listsApiMocks.addUserToListApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await store.addUserToList('list-1', 'friend@example.com')
+
+    expect(listsApiMocks.addUserToListApi).toHaveBeenCalledWith({
+      list_id: 'list-1',
+      email: 'friend@example.com',
+    })
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('throws error when sharing list while offline without calling API or adding to sync queue', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+
+    const store = useListsStore()
+    await expect(store.addUserToList('list-1', 'friend@example.com')).rejects.toThrow(
+      'Cannot share list while offline',
+    )
+
+    expect(listsApiMocks.addUserToListApi).not.toHaveBeenCalled()
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('propagates error when sharing list fails on server without adding to sync queue', async () => {
+    listsApiMocks.addUserToListApi.mockRejectedValueOnce(new Error('User not found'))
+
+    const store = useListsStore()
+    await expect(store.addUserToList('list-1', 'unknown@example.com')).rejects.toThrow(
+      'User not found',
+    )
+
+    expect(store.pendingCount).toBe(0)
+  })
 })
