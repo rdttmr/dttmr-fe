@@ -1,0 +1,45 @@
+export interface List {
+  id: string
+  name: string
+  created_at?: string
+  modified_at?: string
+}
+
+export interface ListItem {
+  id: string
+  list_id: string
+  title: string
+  is_completed: boolean
+  created_at?: string
+  modified_at?: string
+}
+
+export interface CreateListPayload {
+  name: string
+  user_ids?: string[]
+}
+
+export interface CreateListItemPayload {
+  list_id: string
+  title: string
+}
+
+export interface UpdateListItemPayload {
+  list_item_id: string
+  title?: string
+  is_completed?: boolean
+}
+
+export interface SetListItemCompletedPayload {
+  is_completed: boolean
+}
+
+export interface AddUserToListPayload {
+  list_id: string
+  user_id: string
+}
+
+export interface RemoveUserFromListPayload {
+  list_id: string
+  user_id: string
+}
