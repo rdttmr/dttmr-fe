@@ -12,13 +12,17 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       },
       manifest: {
+        id: '/',
         name: 'dittmar.dev',
         short_name: 'dttmr',
         description: 'dittmar.dev frontend app',
+        start_url: '/',
+        scope: '/',
         theme_color: '#0a0e1a',
         background_color: '#0a0e1a',
         display: 'standalone',
@@ -32,6 +36,12 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+          },
+          {
+            src: 'maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           }
         ]
       }
