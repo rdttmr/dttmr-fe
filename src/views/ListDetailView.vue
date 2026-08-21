@@ -10,7 +10,6 @@ const router = useRouter()
 const listsStore = useListsStore()
 
 const newItemTitle = ref('')
-const newUserId = ref('')
 const isAddingItem = ref(false)
 const itemError = ref('')
 
@@ -37,13 +36,6 @@ async function handleAddItem() {
   } finally {
     isAddingItem.value = false
   }
-}
-
-async function handleAddUser() {
-  const userId = newUserId.value.trim()
-  if (!userId) return
-  await listsStore.addUserToList(props.id, userId)
-  newUserId.value = ''
 }
 </script>
 
@@ -89,16 +81,6 @@ async function handleAddUser() {
       </section>
 
       <p v-if="items.length === 0" class="empty-hint">No items yet — add your first one above.</p>
-
-      <section class="card share-card">
-        <h4>Share this list</h4>
-        <form class="add-user-form" @submit.prevent="handleAddUser">
-          <div class="field">
-            <input v-model="newUserId" type="text" placeholder="User ID" />
-          </div>
-          <button type="submit" class="btn btn-secondary">Add</button>
-        </form>
-      </section>
     </template>
 
     <p v-else class="empty-hint">List not found on this device.</p>
@@ -157,6 +139,8 @@ h1 {
 
 .items-list {
   list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .empty-hint {
@@ -164,29 +148,5 @@ h1 {
   color: var(--c-text-soft);
   text-align: center;
   padding: 1.5rem 0;
-}
-
-.share-card {
-  padding: 1rem 1.1rem;
-  margin-top: 1.5rem;
-}
-
-.share-card h4 {
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-
-.add-user-form {
-  display: flex;
-  gap: 0.6rem;
-}
-
-.add-user-form .field {
-  flex: 1;
-}
-
-.add-user-form .btn {
-  width: auto;
-  flex-shrink: 0;
 }
 </style>

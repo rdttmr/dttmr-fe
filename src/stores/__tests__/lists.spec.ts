@@ -84,14 +84,14 @@ vi.mock('@/database/db', () => ({
 }))
 
 const listsApiMocks = vi.hoisted(() => ({
-  getListsApi: vi.fn(),
-  createListApi: vi.fn(),
-  getListItemsApi: vi.fn(),
-  createListItemApi: vi.fn(),
-  updateListItemApi: vi.fn(),
-  setListItemCompletedApi: vi.fn(),
-  addUserToListApi: vi.fn(),
-  removeUserFromListApi: vi.fn(),
+  getListsApi: vi.fn<() => Promise<unknown>>(),
+  createListApi: vi.fn<() => Promise<unknown>>(),
+  getListItemsApi: vi.fn<() => Promise<unknown>>(),
+  createListItemApi: vi.fn<() => Promise<unknown>>(),
+  updateListItemApi: vi.fn<() => Promise<unknown>>(),
+  setListItemCompletedApi: vi.fn<() => Promise<unknown>>(),
+  addUserToListApi: vi.fn<() => Promise<unknown>>(),
+  removeUserFromListApi: vi.fn<() => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/lists', () => listsApiMocks)
@@ -254,9 +254,7 @@ describe('useListsStore', () => {
     const store = useListsStore()
     const localList = await store.createList('Local only')
 
-    listsApiMocks.getListsApi.mockResolvedValueOnce([
-      { id: localList.id, name: 'Server version' },
-    ])
+    listsApiMocks.getListsApi.mockResolvedValueOnce([{ id: localList.id, name: 'Server version' }])
 
     await store.pullFromServer()
 

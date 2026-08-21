@@ -1,17 +1,28 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useListsStore } from '@/stores/lists'
+import type { LocalList } from '@/database/db'
 import ListCard from '@/components/ListCard.vue'
+import ShareListModal from '@/components/ShareListModal.vue'
 
 const listsStore = useListsStore()
 
 const newListName = ref('')
 const isCreating = ref(false)
 const createError = ref('')
+const sharingList = ref<LocalList | null>(null)
 
 onMounted(() => {
   listsStore.loadLists()
 })
+
+function handleOpenShare(list: LocalList) {
+  sharingList.value = list
+}
+
+function handleCloseShare() {
+  sharingList.value = null
+}
 
 async function handleCreateList() {
   const name = newListName.value.trim()
@@ -43,7 +54,11 @@ async function handleCreateList() {
           :disabled="isCreating"
         />
       </div>
-      <button type="submit" class="btn btn-primary add-btn" :disabled="isCreating || !newListName.trim()">
+      <button
+        type="submit"
+        class="btn btn-primary add-btn"
+        :disabled="isCreating || !newListName.trim()"
+      >
         +
       </button>
     </form>
@@ -52,7 +67,7 @@ async function handleCreateList() {
 
     <ul v-if="listsStore.sortedLists.length > 0" class="lists">
       <li v-for="list in listsStore.sortedLists" :key="list.id">
-        <ListCard :list="list" />
+        <ListCard :list="list" @share="handleOpenShare(list)" />
       </li>
     </ul>
 
@@ -60,6 +75,8 @@ async function handleCreateList() {
       <p>No lists yet</p>
       <p class="empty-hint">Create your first list above to get started.</p>
     </div>
+
+    <ShareListModal v-if="sharingList" :list="sharingList" @close="handleCloseShare" />
   </main>
 </template>
 

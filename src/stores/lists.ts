@@ -211,9 +211,7 @@ export const useListsStore = defineStore('lists', () => {
       const payload = queueEntry.payload as { list_item_id?: string }
       await db.syncQueue.update(queueEntry.id!, {
         localListItemId: newId,
-        payload: payload?.list_item_id
-          ? { ...payload, list_item_id: newId }
-          : queueEntry.payload,
+        payload: payload?.list_item_id ? { ...payload, list_item_id: newId } : queueEntry.payload,
       })
     }
   }

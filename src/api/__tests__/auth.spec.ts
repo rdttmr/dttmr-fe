@@ -43,9 +43,9 @@ describe('auth API', () => {
         json: async () => ({ message: 'Invalid email or password' }),
       } as unknown as Response)
 
-      await expect(
-        loginApi({ email: 'user@example.com', password: 'wrong' }),
-      ).rejects.toThrow('Invalid email or password')
+      await expect(loginApi({ email: 'user@example.com', password: 'wrong' })).rejects.toThrow(
+        'Invalid email or password',
+      )
     })
   })
 
@@ -83,9 +83,7 @@ describe('auth API', () => {
         },
       } as unknown as Response)
 
-      await expect(
-        refreshApi({ refresh_token: 'invalid-token' }),
-      ).rejects.toThrow('Unauthorized')
+      await expect(refreshApi({ refresh_token: 'invalid-token' })).rejects.toThrow('Unauthorized')
     })
   })
 
@@ -115,9 +113,9 @@ describe('auth API', () => {
         json: async () => ({ error: 'failed to logout' }),
       } as unknown as Response)
 
-      await expect(
-        logoutApi({ refresh_token: 'invalid-token' }),
-      ).rejects.toThrow('failed to logout')
+      await expect(logoutApi({ refresh_token: 'invalid-token' })).rejects.toThrow(
+        'failed to logout',
+      )
     })
   })
 
@@ -134,7 +132,7 @@ describe('auth API', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer access-123',
+          Authorization: 'Bearer access-123',
         },
         body: JSON.stringify({}),
       })
