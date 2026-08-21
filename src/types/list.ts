@@ -36,10 +36,10 @@ export interface SetListItemCompletedPayload {
 
 export interface AddUserToListPayload {
   list_id: string
-  user_id: string
+  email: string
 }
 
 export interface RemoveUserFromListPayload {
   list_id: string
-  user_id: string
+  email: string
 }

@@ -142,20 +142,20 @@ export const useListsStore = defineStore('lists', () => {
     void sync()
   }
 
-  async function addUserToList(listId: string, userId: string) {
+  async function addUserToList(listId: string, email: string) {
     await enqueue({
       type: 'addUserToList',
-      payload: { list_id: listId, user_id: userId },
+      payload: { list_id: listId, email },
       localListId: listId,
     })
     await refresh()
     void sync()
   }
 
-  async function removeUserFromList(listId: string, userId: string) {
+  async function removeUserFromList(listId: string, email: string) {
     await enqueue({
       type: 'removeUserFromList',
-      payload: { list_id: listId, user_id: userId },
+      payload: { list_id: listId, email },
       localListId: listId,
     })
     await refresh()
@@ -255,11 +255,11 @@ export const useListsStore = defineStore('lists', () => {
         break
       }
       case 'addUserToList': {
-        await addUserToListApi(entry.payload as { list_id: string; user_id: string })
+        await addUserToListApi(entry.payload as { list_id: string; email: string })
         break
       }
       case 'removeUserFromList': {
-        await removeUserFromListApi(entry.payload as { list_id: string; user_id: string })
+        await removeUserFromListApi(entry.payload as { list_id: string; email: string })
         break
       }
     }

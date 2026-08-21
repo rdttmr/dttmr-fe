@@ -157,7 +157,7 @@ describe('lists API', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await addUserToListApi({ list_id: 'list-1', user_id: 'user-1' })
+    await addUserToListApi({ list_id: 'list-1', email: 'user@example.com' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/lists/user`,
@@ -172,7 +172,7 @@ describe('lists API', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await removeUserFromListApi({ list_id: 'list-1', user_id: 'user-1' })
+    await removeUserFromListApi({ list_id: 'list-1', email: 'user@example.com' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/lists/user`,
