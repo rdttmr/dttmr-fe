@@ -369,11 +369,29 @@ export const useListsStore = defineStore('lists', () => {
 
     try {
       const serverLists = await getListsApi()
+      const serverListIds = new Set(serverLists.map((serverList) => serverList.id))
 
       for (const serverList of serverLists) {
         const existingList = await db.lists.get(serverList.id)
         if (!existingList || !existingList.pendingSync) {
           await db.lists.put({ ...serverList, pendingSync: false })
+        }
+      }
+
+      // Lists that were already synced but are no longer reported by the
+      // server have been deleted there (e.g. from another device), so
+      // remove them locally too, along with their items. Lists that still
+      // have pending local changes (not yet synced, e.g. a not-yet-pushed
+      // "createList") are left alone since the server doesn't know about
+      // them yet.
+      const localLists = await db.lists.toArray()
+      for (const localList of localLists) {
+        if (!localList.pendingSync && !serverListIds.has(localList.id)) {
+          await db.lists.delete(localList.id)
+          const orphanedItems = await db.listItems.where('list_id').equals(localList.id).toArray()
+          for (const item of orphanedItems) {
+            await db.listItems.delete(item.id)
+          }
         }
       }
     } catch (err) {
@@ -391,10 +409,23 @@ export const useListsStore = defineStore('lists', () => {
 
     try {
       const serverItems = await getListItemsApi(listId)
+      const serverItemIds = new Set(serverItems.map((serverItem) => serverItem.id))
+
       for (const serverItem of serverItems) {
         const existingItem = await db.listItems.get(serverItem.id)
         if (!existingItem || !existingItem.pendingSync) {
           await db.listItems.put({ ...serverItem, pendingSync: false })
+        }
+      }
+
+      // Items that were already synced but are no longer reported by the
+      // server for this list have been deleted there, so remove them
+      // locally too. Items with pending local changes are left alone since
+      // the server doesn't know about them yet.
+      const localItems = await db.listItems.where('list_id').equals(listId).toArray()
+      for (const localItem of localItems) {
+        if (!localItem.pendingSync && !serverItemIds.has(localItem.id)) {
+          await db.listItems.delete(localItem.id)
         }
       }
     } catch (err) {
