@@ -235,16 +235,30 @@ describe('useListsStore', () => {
     expect(updated?.pendingSync).toBe(false)
   })
 
-  it('pulls lists and items from the server and merges them locally', async () => {
-    listsApiMocks.getListsApi.mockResolvedValueOnce([{ id: 'server-list-1', name: 'Groceries' }])
-    listsApiMocks.getListItemsApi.mockResolvedValueOnce([
-      { id: 'server-item-1', list_id: 'server-list-1', title: 'Milk', is_completed: false },
+  it('pulls lists from the server, including total/completed item counts, without fetching every item', async () => {
+    listsApiMocks.getListsApi.mockResolvedValueOnce([
+      { id: 'server-list-1', name: 'Groceries', total_items: 3, completed_items: 1 },
     ])
 
     const store = useListsStore()
     await store.pullFromServer()
 
-    expect(store.lists.find((list) => list.id === 'server-list-1')).toBeDefined()
+    const pulledList = store.lists.find((list) => list.id === 'server-list-1')
+    expect(pulledList).toBeDefined()
+    expect(pulledList?.total_items).toBe(3)
+    expect(pulledList?.completed_items).toBe(1)
+    expect(listsApiMocks.getListItemsApi).not.toHaveBeenCalled()
+  })
+
+  it('pulls the items of a single list on demand via pullListItems', async () => {
+    listsApiMocks.getListItemsApi.mockResolvedValueOnce([
+      { id: 'server-item-1', list_id: 'server-list-1', title: 'Milk', is_completed: false },
+    ])
+
+    const store = useListsStore()
+    await store.pullListItems('server-list-1')
+
+    expect(listsApiMocks.getListItemsApi).toHaveBeenCalledWith('server-list-1')
     expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeDefined()
   })
 

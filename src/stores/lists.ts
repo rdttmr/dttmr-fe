@@ -317,9 +317,14 @@ export const useListsStore = defineStore('lists', () => {
     }
   }
 
-  // Pulls the authoritative lists/items from the server and merges them into
-  // local storage. Entries that still have local unsynced changes
-  // (pendingSync) are left untouched so we never clobber pending edits.
+  // Pulls the authoritative lists from the server and merges them into local
+  // storage. Entries that still have local unsynced changes (pendingSync)
+  // are left untouched so we never clobber pending edits.
+  //
+  // This no longer eagerly fetches every item of every list: the server now
+  // reports total_items/completed_items directly on each list, which is all
+  // the overview page needs. Items for a specific list are only pulled on
+  // demand via pullListItems (e.g. when opening its detail view).
   async function pullFromServer(): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
@@ -331,24 +336,40 @@ export const useListsStore = defineStore('lists', () => {
         if (!existingList || !existingList.pendingSync) {
           await db.lists.put({ ...serverList, pendingSync: false })
         }
-
-        try {
-          const serverItems = await getListItemsApi(serverList.id)
-          for (const serverItem of serverItems) {
-            const existingItem = await db.listItems.get(serverItem.id)
-            if (!existingItem || !existingItem.pendingSync) {
-              await db.listItems.put({ ...serverItem, pendingSync: false })
-            }
-          }
-        } catch {
-          // Ignore per-list failures so one broken list doesn't block the rest.
-        }
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load lists from server'
     } finally {
       await refresh()
     }
+  }
+
+  // Pulls the authoritative items of a single list from the server and
+  // merges them into local storage. Used by the list detail view, which is
+  // the only place that needs the full item set for a list.
+  async function pullListItems(listId: string): Promise<void> {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+
+    try {
+      const serverItems = await getListItemsApi(listId)
+      for (const serverItem of serverItems) {
+        const existingItem = await db.listItems.get(serverItem.id)
+        if (!existingItem || !existingItem.pendingSync) {
+          await db.listItems.put({ ...serverItem, pendingSync: false })
+        }
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load list items from server'
+    } finally {
+      await refresh()
+    }
+  }
+
+  async function loadListItems(listId: string) {
+    if (!isLoaded.value) {
+      await refresh()
+    }
+    void pullListItems(listId)
   }
 
   return {
@@ -361,6 +382,7 @@ export const useListsStore = defineStore('lists', () => {
     error,
     itemsForList,
     loadLists,
+    loadListItems,
     refresh,
     createList,
     createListItem,
@@ -370,5 +392,6 @@ export const useListsStore = defineStore('lists', () => {
     removeUserFromList,
     sync,
     pullFromServer,
+    pullListItems,
   }
 })

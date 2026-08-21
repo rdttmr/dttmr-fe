@@ -15,6 +15,7 @@ const itemError = ref('')
 
 onMounted(() => {
   listsStore.loadLists()
+  listsStore.loadListItems(props.id)
 })
 
 const list = computed(() => listsStore.lists.find((entry) => entry.id === props.id))

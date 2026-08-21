@@ -3,6 +3,8 @@ export interface List {
   name: string
   created_at?: string
   modified_at?: string
+  total_items?: number
+  completed_items?: number
 }
 
 export interface ListItem {

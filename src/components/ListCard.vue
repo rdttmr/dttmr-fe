@@ -13,8 +13,15 @@ const listsStore = useListsStore()
 const isMenuOpen = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
 
+// The server now reports total_items/completed_items directly on the list,
+// so the overview can show progress without having to load every item of
+// every list. Fall back to counting locally cached items for lists that
+// haven't synced to the server yet (e.g. just created while offline).
 const items = computed(() => listsStore.itemsForList(props.list.id))
-const completedCount = computed(() => items.value.filter((item) => item.is_completed).length)
+const totalCount = computed(() => props.list.total_items ?? items.value.length)
+const completedCount = computed(
+  () => props.list.completed_items ?? items.value.filter((item) => item.is_completed).length,
+)
 
 function toggleMenu(event: Event) {
   event.preventDefault()
@@ -58,7 +65,7 @@ onUnmounted(() => {
       <div class="list-card-main">
         <h3>{{ list.name }}</h3>
         <p class="meta">
-          {{ completedCount }}/{{ items.length }} done
+          {{ completedCount }}/{{ totalCount }} done
           <span v-if="list.pendingSync" class="pending-tag">syncing…</span>
         </p>
       </div>
