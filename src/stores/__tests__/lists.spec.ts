@@ -123,6 +123,9 @@ describe('useListsStore', () => {
 
   it('creates a list locally, queues a sync entry, and remaps the id after a successful sync', async () => {
     listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-id-1', name: 'Groceries' })
+    // The chained pullFromServer() call needs to report the just-created list
+    // back, otherwise it would look like the server deleted it.
+    listsApiMocks.getListsApi.mockResolvedValueOnce([{ id: 'server-id-1', name: 'Groceries' }])
 
     const store = useListsStore()
     const localList = await store.createList('Groceries', [])
@@ -262,6 +265,55 @@ describe('useListsStore', () => {
 
     expect(listsApiMocks.getListItemsApi).toHaveBeenCalledWith('server-list-1')
     expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeDefined()
+  })
+
+  it('deletes a previously synced list locally when it is missing from the server', async () => {
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'server-list-1', name: 'Groceries', pendingSync: false })
+    await fakeDb.listItems.put({
+      id: 'server-item-1',
+      list_id: 'server-list-1',
+      title: 'Milk',
+      pendingSync: false,
+    })
+    await store.refresh()
+
+    listsApiMocks.getListsApi.mockResolvedValueOnce([])
+
+    await store.pullFromServer()
+
+    expect(store.lists.find((list) => list.id === 'server-list-1')).toBeUndefined()
+    expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeUndefined()
+  })
+
+  it('deletes a previously synced list item locally when it is missing from the server', async () => {
+    const store = useListsStore()
+    await fakeDb.listItems.put({
+      id: 'server-item-2',
+      list_id: 'server-list-1',
+      title: 'Bread',
+      pendingSync: false,
+    })
+    await store.refresh()
+
+    listsApiMocks.getListItemsApi.mockResolvedValueOnce([])
+
+    await store.pullListItems('server-list-1')
+
+    expect(store.listItems.find((item) => item.id === 'server-item-2')).toBeUndefined()
+  })
+
+  it('does not delete a locally pending list even when it is missing from the server', async () => {
+    listsApiMocks.createListApi.mockImplementation(() => new Promise(() => {}))
+
+    const store = useListsStore()
+    const localList = await store.createList('Local only')
+
+    listsApiMocks.getListsApi.mockResolvedValueOnce([])
+
+    await store.pullFromServer()
+
+    expect(store.lists.find((list) => list.id === localList.id)).toBeDefined()
   })
 
   it('does not overwrite a locally pending list with stale server data', async () => {
