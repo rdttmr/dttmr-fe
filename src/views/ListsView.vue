@@ -33,7 +33,6 @@ async function handleCreateList() {
 <template>
   <main class="page">
     <h1>Your Lists</h1>
-    <p class="subtitle">Everything is saved on this device and synced when you're online.</p>
 
     <form class="new-list-form" @submit.prevent="handleCreateList">
       <div class="field">
@@ -97,6 +96,9 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .empty-state {
