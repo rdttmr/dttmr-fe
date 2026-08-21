@@ -9,6 +9,8 @@ import {
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
+  deleteListApi,
+  deleteListItemApi,
 } from '../lists'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/auth'
@@ -178,5 +180,53 @@ describe('lists API', () => {
       `${API_BASE_URL}/lists/user`,
       expect.objectContaining({ method: 'DELETE' }),
     )
+  })
+
+  it('deleteListApi sends DELETE to /lists/{id}', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await deleteListApi('list-1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/lists/list-1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('deleteListApi throws on failure', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'List not found' }),
+    } as unknown as Response)
+
+    await expect(deleteListApi('list-1')).rejects.toThrow('List not found')
+  })
+
+  it('deleteListItemApi sends DELETE to /lists/item/{id}', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await deleteListItemApi('item-1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/lists/item/item-1`,
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('deleteListItemApi throws on failure', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Item not found' }),
+    } as unknown as Response)
+
+    await expect(deleteListItemApi('item-1')).rejects.toThrow('Item not found')
   })
 })

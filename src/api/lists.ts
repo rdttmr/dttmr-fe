@@ -83,3 +83,17 @@ export async function removeUserFromListApi(payload: RemoveUserFromListPayload):
     throw new Error(await extractErrorMessage(response, 'Failed to remove user from list'))
   }
 }
+
+export async function deleteListApi(listId: string): Promise<void> {
+  const response = await apiClient.delete(`/lists/${listId}`)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to delete list'))
+  }
+}
+
+export async function deleteListItemApi(itemId: string): Promise<void> {
+  const response = await apiClient.delete(`/lists/item/${itemId}`)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to delete list item'))
+  }
+}

@@ -10,6 +10,8 @@ import {
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
+  deleteListApi,
+  deleteListItemApi,
 } from '@/api/lists'
 
 function generateId(): string {
@@ -162,6 +164,32 @@ export const useListsStore = defineStore('lists', () => {
     void sync()
   }
 
+  async function deleteList(listId: string) {
+    await db.lists.delete(listId)
+    const affectedItems = await db.listItems.where('list_id').equals(listId).toArray()
+    for (const item of affectedItems) {
+      await db.listItems.delete(item.id)
+    }
+    await enqueue({
+      type: 'deleteList',
+      payload: { id: listId },
+      localListId: listId,
+    })
+    await refresh()
+    void sync()
+  }
+
+  async function deleteListItem(itemId: string) {
+    await db.listItems.delete(itemId)
+    await enqueue({
+      type: 'deleteListItem',
+      payload: { id: itemId },
+      localListItemId: itemId,
+    })
+    await refresh()
+    void sync()
+  }
+
   // Remaps a client-generated temporary list id to the id assigned by the
   // server once the "createList" sync operation succeeds. This keeps any
   // items or queued operations referencing the temporary id consistent.
@@ -183,10 +211,14 @@ export const useListsStore = defineStore('lists', () => {
       .filter((entry) => entry.localListId === oldId)
       .toArray()
     for (const entry of affectedQueueEntries) {
-      const payload = entry.payload as { list_id?: string }
+      const payload = entry.payload as { list_id?: string; id?: string }
       await db.syncQueue.update(entry.id!, {
         localListId: newId,
-        payload: payload?.list_id ? { ...payload, list_id: newId } : entry.payload,
+        payload: payload?.list_id
+          ? { ...payload, list_id: newId }
+          : payload?.id
+            ? { ...payload, id: newId }
+            : entry.payload,
       })
     }
   }
@@ -208,10 +240,14 @@ export const useListsStore = defineStore('lists', () => {
       .filter((queueEntry) => queueEntry.localListItemId === oldId)
       .toArray()
     for (const queueEntry of affectedQueueEntries) {
-      const payload = queueEntry.payload as { list_item_id?: string }
+      const payload = queueEntry.payload as { list_item_id?: string; id?: string }
       await db.syncQueue.update(queueEntry.id!, {
         localListItemId: newId,
-        payload: payload?.list_item_id ? { ...payload, list_item_id: newId } : queueEntry.payload,
+        payload: payload?.list_item_id
+          ? { ...payload, list_item_id: newId }
+          : payload?.id
+            ? { ...payload, id: newId }
+            : queueEntry.payload,
       })
     }
   }
@@ -260,6 +296,16 @@ export const useListsStore = defineStore('lists', () => {
       }
       case 'removeUserFromList': {
         await removeUserFromListApi(entry.payload as { list_id: string; email: string })
+        break
+      }
+      case 'deleteList': {
+        const payload = entry.payload as { id: string }
+        await deleteListApi(payload.id)
+        break
+      }
+      case 'deleteListItem': {
+        const payload = entry.payload as { id: string }
+        await deleteListItemApi(payload.id)
         break
       }
     }
@@ -390,6 +436,8 @@ export const useListsStore = defineStore('lists', () => {
     setListItemCompleted,
     addUserToList,
     removeUserFromList,
+    deleteList,
+    deleteListItem,
     sync,
     pullFromServer,
     pullListItems,

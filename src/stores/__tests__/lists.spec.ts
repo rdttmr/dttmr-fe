@@ -92,6 +92,8 @@ const listsApiMocks = vi.hoisted(() => ({
   setListItemCompletedApi: vi.fn<() => Promise<unknown>>(),
   addUserToListApi: vi.fn<() => Promise<unknown>>(),
   removeUserFromListApi: vi.fn<() => Promise<unknown>>(),
+  deleteListApi: vi.fn<() => Promise<unknown>>(),
+  deleteListItemApi: vi.fn<() => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/lists', () => listsApiMocks)
@@ -275,5 +277,46 @@ describe('useListsStore', () => {
     const stillLocal = store.lists.find((list) => list.id === localList.id)
     expect(stillLocal?.name).toBe('Local only')
     expect(stillLocal?.pendingSync).toBe(true)
+  })
+
+  it('deletes a list locally and syncs deletion to the server', async () => {
+    listsApiMocks.deleteListApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'list-to-delete', name: 'Delete Me' })
+    await fakeDb.listItems.put({ id: 'item-in-list', list_id: 'list-to-delete', title: 'Item' })
+    await store.refresh()
+
+    expect(store.lists.find((l) => l.id === 'list-to-delete')).toBeDefined()
+    expect(store.listItems.find((i) => i.id === 'item-in-list')).toBeDefined()
+
+    await store.deleteList('list-to-delete')
+
+    expect(store.lists.find((l) => l.id === 'list-to-delete')).toBeUndefined()
+    expect(store.listItems.find((i) => i.id === 'item-in-list')).toBeUndefined()
+
+    await store.sync()
+
+    expect(listsApiMocks.deleteListApi).toHaveBeenCalledWith('list-to-delete')
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('deletes a list item locally and syncs deletion to the server', async () => {
+    listsApiMocks.deleteListItemApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await fakeDb.listItems.put({ id: 'item-to-delete', list_id: 'list-1', title: 'Delete Me' })
+    await store.refresh()
+
+    expect(store.listItems.find((i) => i.id === 'item-to-delete')).toBeDefined()
+
+    await store.deleteListItem('item-to-delete')
+
+    expect(store.listItems.find((i) => i.id === 'item-to-delete')).toBeUndefined()
+
+    await store.sync()
+
+    expect(listsApiMocks.deleteListItemApi).toHaveBeenCalledWith('item-to-delete')
+    expect(store.pendingCount).toBe(0)
   })
 })

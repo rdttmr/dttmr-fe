@@ -16,6 +16,8 @@ export type SyncOperationType =
   | 'setListItemCompleted'
   | 'addUserToList'
   | 'removeUserFromList'
+  | 'deleteList'
+  | 'deleteListItem'
 
 export interface SyncQueueEntry {
   id?: number
