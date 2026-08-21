@@ -19,7 +19,8 @@ export default defineConfig({
         name: 'dittmar.dev',
         short_name: 'dttmr',
         description: 'dittmar.dev frontend app',
-        theme_color: '#ffffff',
+        theme_color: '#0a0e1a',
+        background_color: '#0a0e1a',
         display: 'standalone',
         icons: [
           {
@@ -39,6 +40,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })
