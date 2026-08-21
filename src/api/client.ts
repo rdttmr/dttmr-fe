@@ -1,7 +1,16 @@
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/auth'
+import router from '@/router'
 
 let refreshPromise: Promise<unknown> | null = null
+
+async function redirectToLogin(): Promise<void> {
+  const currentRoute = router.currentRoute.value
+  if (currentRoute.name === 'login') {
+    return
+  }
+  await router.push({ name: 'login', query: { redirect: currentRoute.fullPath } })
+}
 
 export interface FetchOptions extends RequestInit {
   skipAuth?: boolean
@@ -43,7 +52,12 @@ export async function fetchWithAuth(
     headers: buildHeaders(customOptions, skipAuth ? null : authStore.accessToken),
   })
 
-  if (response.status === 401 && !skipRefresh && authStore.refreshToken) {
+  if (response.status === 401 && !skipRefresh) {
+    if (!authStore.refreshToken) {
+      await redirectToLogin()
+      return response
+    }
+
     try {
       if (!refreshPromise) {
         refreshPromise = authStore.refreshTokens().finally(() => {
@@ -57,6 +71,7 @@ export async function fetchWithAuth(
         headers: buildHeaders(customOptions, authStore.accessToken),
       })
     } catch {
+      await redirectToLogin()
       return response
     }
   }

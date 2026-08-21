@@ -3,14 +3,16 @@ import { setActivePinia, createPinia } from 'pinia'
 import { fetchWithAuth, apiClient } from '../client'
 import { useAuthStore } from '@/stores/auth'
 import * as authApi from '@/api/auth'
+import router from '@/router'
 
 describe('api client (fetchWithAuth)', () => {
   const originalFetch = global.fetch
 
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.restoreAllMocks()
+    await router.push('/')
   })
 
   afterEach(() => {
@@ -103,6 +105,50 @@ describe('api client (fetchWithAuth)', () => {
     const secondCallHeaders = secondCall?.[1]?.headers as Headers
     expect(secondCallHeaders.get('Authorization')).toBe('Bearer new-access-token')
     expect(res).toBe(secondResponse)
+  })
+
+  it('redirects to login when a 401 occurs and no refresh token is available', async () => {
+    const authStore = useAuthStore()
+    authStore.setTokens({
+      access_token: 'expired-token',
+      refresh_token: 'valid-refresh-token',
+    })
+    authStore.clearTokens()
+
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await fetchWithAuth('/lists')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(router.currentRoute.value.name).toBe('login')
+  })
+
+  it('redirects to login when refreshing the token fails', async () => {
+    const authStore = useAuthStore()
+    authStore.setTokens({
+      access_token: 'expired-token',
+      refresh_token: 'expired-refresh-token',
+    })
+
+    vi.spyOn(authApi, 'refreshApi').mockRejectedValueOnce(new Error('Refresh token expired'))
+
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await fetchWithAuth('/lists')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(authStore.accessToken).toBeNull()
+    expect(router.currentRoute.value.name).toBe('login')
   })
 
   it('calls apiClient helper methods correctly', async () => {

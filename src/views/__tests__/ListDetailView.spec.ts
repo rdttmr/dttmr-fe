@@ -7,11 +7,15 @@ import type { LocalList } from '@/database/db'
 
 const pushMock = vi.fn<(to: string) => void>()
 
-vi.mock('vue-router', () => ({
-  useRouter: () => ({
-    push: pushMock,
-  }),
-}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: pushMock,
+    }),
+  }
+})
 
 describe('ListDetailView', () => {
   beforeEach(() => {
