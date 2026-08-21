@@ -3,6 +3,8 @@ export interface List {
   name: string
   created_at?: string
   modified_at?: string
+  total_items?: number
+  completed_items?: number
 }
 
 export interface ListItem {
@@ -36,10 +38,10 @@ export interface SetListItemCompletedPayload {
 
 export interface AddUserToListPayload {
   list_id: string
-  user_id: string
+  email: string
 }
 
 export interface RemoveUserFromListPayload {
   list_id: string
-  user_id: string
+  email: string
 }

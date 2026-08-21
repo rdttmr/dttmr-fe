@@ -7,14 +7,22 @@ import { useListsStore } from '@/stores/lists'
 const props = defineProps<{ list: LocalList }>()
 const emit = defineEmits<{
   (e: 'share', list: LocalList): void
+  (e: 'delete', list: LocalList): void
 }>()
 
 const listsStore = useListsStore()
 const isMenuOpen = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
 
+// The server now reports total_items/completed_items directly on the list,
+// so the overview can show progress without having to load every item of
+// every list. Fall back to counting locally cached items for lists that
+// haven't synced to the server yet (e.g. just created while offline).
 const items = computed(() => listsStore.itemsForList(props.list.id))
-const completedCount = computed(() => items.value.filter((item) => item.is_completed).length)
+const totalCount = computed(() => props.list.total_items ?? items.value.length)
+const completedCount = computed(
+  () => props.list.completed_items ?? items.value.filter((item) => item.is_completed).length,
+)
 
 function toggleMenu(event: Event) {
   event.preventDefault()
@@ -27,6 +35,13 @@ function handleShare(event: Event) {
   event.stopPropagation()
   isMenuOpen.value = false
   emit('share', props.list)
+}
+
+function handleDelete(event: Event) {
+  event.preventDefault()
+  event.stopPropagation()
+  isMenuOpen.value = false
+  emit('delete', props.list)
 }
 
 function handleClickOutside(event: MouseEvent) {
@@ -58,7 +73,7 @@ onUnmounted(() => {
       <div class="list-card-main">
         <h3>{{ list.name }}</h3>
         <p class="meta">
-          {{ completedCount }}/{{ items.length }} done
+          {{ completedCount }}/{{ totalCount }} done
           <span v-if="list.pendingSync" class="pending-tag">syncing…</span>
         </p>
       </div>
@@ -100,6 +115,28 @@ onUnmounted(() => {
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
           <span>Share list</span>
+        </button>
+        <button
+          type="button"
+          class="submenu-item submenu-item-danger"
+          role="menuitem"
+          @click="handleDelete"
+        >
+          <svg
+            class="submenu-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+          <span>Delete list</span>
         </button>
       </div>
     </div>
@@ -241,6 +278,15 @@ onUnmounted(() => {
 .submenu-item:hover {
   background-color: var(--c-bg-mute);
   color: var(--c-accent-strong);
+}
+
+.submenu-item-danger {
+  color: var(--c-danger);
+}
+
+.submenu-item-danger:hover {
+  background-color: var(--c-danger-bg);
+  color: var(--c-danger);
 }
 
 .submenu-icon {

@@ -92,6 +92,8 @@ const listsApiMocks = vi.hoisted(() => ({
   setListItemCompletedApi: vi.fn<() => Promise<unknown>>(),
   addUserToListApi: vi.fn<() => Promise<unknown>>(),
   removeUserFromListApi: vi.fn<() => Promise<unknown>>(),
+  deleteListApi: vi.fn<() => Promise<unknown>>(),
+  deleteListItemApi: vi.fn<() => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/lists', () => listsApiMocks)
@@ -235,16 +237,30 @@ describe('useListsStore', () => {
     expect(updated?.pendingSync).toBe(false)
   })
 
-  it('pulls lists and items from the server and merges them locally', async () => {
-    listsApiMocks.getListsApi.mockResolvedValueOnce([{ id: 'server-list-1', name: 'Groceries' }])
-    listsApiMocks.getListItemsApi.mockResolvedValueOnce([
-      { id: 'server-item-1', list_id: 'server-list-1', title: 'Milk', is_completed: false },
+  it('pulls lists from the server, including total/completed item counts, without fetching every item', async () => {
+    listsApiMocks.getListsApi.mockResolvedValueOnce([
+      { id: 'server-list-1', name: 'Groceries', total_items: 3, completed_items: 1 },
     ])
 
     const store = useListsStore()
     await store.pullFromServer()
 
-    expect(store.lists.find((list) => list.id === 'server-list-1')).toBeDefined()
+    const pulledList = store.lists.find((list) => list.id === 'server-list-1')
+    expect(pulledList).toBeDefined()
+    expect(pulledList?.total_items).toBe(3)
+    expect(pulledList?.completed_items).toBe(1)
+    expect(listsApiMocks.getListItemsApi).not.toHaveBeenCalled()
+  })
+
+  it('pulls the items of a single list on demand via pullListItems', async () => {
+    listsApiMocks.getListItemsApi.mockResolvedValueOnce([
+      { id: 'server-item-1', list_id: 'server-list-1', title: 'Milk', is_completed: false },
+    ])
+
+    const store = useListsStore()
+    await store.pullListItems('server-list-1')
+
+    expect(listsApiMocks.getListItemsApi).toHaveBeenCalledWith('server-list-1')
     expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeDefined()
   })
 
@@ -261,5 +277,46 @@ describe('useListsStore', () => {
     const stillLocal = store.lists.find((list) => list.id === localList.id)
     expect(stillLocal?.name).toBe('Local only')
     expect(stillLocal?.pendingSync).toBe(true)
+  })
+
+  it('deletes a list locally and syncs deletion to the server', async () => {
+    listsApiMocks.deleteListApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'list-to-delete', name: 'Delete Me' })
+    await fakeDb.listItems.put({ id: 'item-in-list', list_id: 'list-to-delete', title: 'Item' })
+    await store.refresh()
+
+    expect(store.lists.find((l) => l.id === 'list-to-delete')).toBeDefined()
+    expect(store.listItems.find((i) => i.id === 'item-in-list')).toBeDefined()
+
+    await store.deleteList('list-to-delete')
+
+    expect(store.lists.find((l) => l.id === 'list-to-delete')).toBeUndefined()
+    expect(store.listItems.find((i) => i.id === 'item-in-list')).toBeUndefined()
+
+    await store.sync()
+
+    expect(listsApiMocks.deleteListApi).toHaveBeenCalledWith('list-to-delete')
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('deletes a list item locally and syncs deletion to the server', async () => {
+    listsApiMocks.deleteListItemApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await fakeDb.listItems.put({ id: 'item-to-delete', list_id: 'list-1', title: 'Delete Me' })
+    await store.refresh()
+
+    expect(store.listItems.find((i) => i.id === 'item-to-delete')).toBeDefined()
+
+    await store.deleteListItem('item-to-delete')
+
+    expect(store.listItems.find((i) => i.id === 'item-to-delete')).toBeUndefined()
+
+    await store.sync()
+
+    expect(listsApiMocks.deleteListItemApi).toHaveBeenCalledWith('item-to-delete')
+    expect(store.pendingCount).toBe(0)
   })
 })

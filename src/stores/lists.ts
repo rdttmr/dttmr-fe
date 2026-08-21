@@ -10,6 +10,8 @@ import {
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
+  deleteListApi,
+  deleteListItemApi,
 } from '@/api/lists'
 
 function generateId(): string {
@@ -142,21 +144,47 @@ export const useListsStore = defineStore('lists', () => {
     void sync()
   }
 
-  async function addUserToList(listId: string, userId: string) {
+  async function addUserToList(listId: string, email: string) {
     await enqueue({
       type: 'addUserToList',
-      payload: { list_id: listId, user_id: userId },
+      payload: { list_id: listId, email },
       localListId: listId,
     })
     await refresh()
     void sync()
   }
 
-  async function removeUserFromList(listId: string, userId: string) {
+  async function removeUserFromList(listId: string, email: string) {
     await enqueue({
       type: 'removeUserFromList',
-      payload: { list_id: listId, user_id: userId },
+      payload: { list_id: listId, email },
       localListId: listId,
+    })
+    await refresh()
+    void sync()
+  }
+
+  async function deleteList(listId: string) {
+    await db.lists.delete(listId)
+    const affectedItems = await db.listItems.where('list_id').equals(listId).toArray()
+    for (const item of affectedItems) {
+      await db.listItems.delete(item.id)
+    }
+    await enqueue({
+      type: 'deleteList',
+      payload: { id: listId },
+      localListId: listId,
+    })
+    await refresh()
+    void sync()
+  }
+
+  async function deleteListItem(itemId: string) {
+    await db.listItems.delete(itemId)
+    await enqueue({
+      type: 'deleteListItem',
+      payload: { id: itemId },
+      localListItemId: itemId,
     })
     await refresh()
     void sync()
@@ -183,10 +211,14 @@ export const useListsStore = defineStore('lists', () => {
       .filter((entry) => entry.localListId === oldId)
       .toArray()
     for (const entry of affectedQueueEntries) {
-      const payload = entry.payload as { list_id?: string }
+      const payload = entry.payload as { list_id?: string; id?: string }
       await db.syncQueue.update(entry.id!, {
         localListId: newId,
-        payload: payload?.list_id ? { ...payload, list_id: newId } : entry.payload,
+        payload: payload?.list_id
+          ? { ...payload, list_id: newId }
+          : payload?.id
+            ? { ...payload, id: newId }
+            : entry.payload,
       })
     }
   }
@@ -208,10 +240,14 @@ export const useListsStore = defineStore('lists', () => {
       .filter((queueEntry) => queueEntry.localListItemId === oldId)
       .toArray()
     for (const queueEntry of affectedQueueEntries) {
-      const payload = queueEntry.payload as { list_item_id?: string }
+      const payload = queueEntry.payload as { list_item_id?: string; id?: string }
       await db.syncQueue.update(queueEntry.id!, {
         localListItemId: newId,
-        payload: payload?.list_item_id ? { ...payload, list_item_id: newId } : queueEntry.payload,
+        payload: payload?.list_item_id
+          ? { ...payload, list_item_id: newId }
+          : payload?.id
+            ? { ...payload, id: newId }
+            : queueEntry.payload,
       })
     }
   }
@@ -255,11 +291,21 @@ export const useListsStore = defineStore('lists', () => {
         break
       }
       case 'addUserToList': {
-        await addUserToListApi(entry.payload as { list_id: string; user_id: string })
+        await addUserToListApi(entry.payload as { list_id: string; email: string })
         break
       }
       case 'removeUserFromList': {
-        await removeUserFromListApi(entry.payload as { list_id: string; user_id: string })
+        await removeUserFromListApi(entry.payload as { list_id: string; email: string })
+        break
+      }
+      case 'deleteList': {
+        const payload = entry.payload as { id: string }
+        await deleteListApi(payload.id)
+        break
+      }
+      case 'deleteListItem': {
+        const payload = entry.payload as { id: string }
+        await deleteListItemApi(payload.id)
         break
       }
     }
@@ -317,9 +363,14 @@ export const useListsStore = defineStore('lists', () => {
     }
   }
 
-  // Pulls the authoritative lists/items from the server and merges them into
-  // local storage. Entries that still have local unsynced changes
-  // (pendingSync) are left untouched so we never clobber pending edits.
+  // Pulls the authoritative lists from the server and merges them into local
+  // storage. Entries that still have local unsynced changes (pendingSync)
+  // are left untouched so we never clobber pending edits.
+  //
+  // This no longer eagerly fetches every item of every list: the server now
+  // reports total_items/completed_items directly on each list, which is all
+  // the overview page needs. Items for a specific list are only pulled on
+  // demand via pullListItems (e.g. when opening its detail view).
   async function pullFromServer(): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
@@ -331,24 +382,40 @@ export const useListsStore = defineStore('lists', () => {
         if (!existingList || !existingList.pendingSync) {
           await db.lists.put({ ...serverList, pendingSync: false })
         }
-
-        try {
-          const serverItems = await getListItemsApi(serverList.id)
-          for (const serverItem of serverItems) {
-            const existingItem = await db.listItems.get(serverItem.id)
-            if (!existingItem || !existingItem.pendingSync) {
-              await db.listItems.put({ ...serverItem, pendingSync: false })
-            }
-          }
-        } catch {
-          // Ignore per-list failures so one broken list doesn't block the rest.
-        }
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load lists from server'
     } finally {
       await refresh()
     }
+  }
+
+  // Pulls the authoritative items of a single list from the server and
+  // merges them into local storage. Used by the list detail view, which is
+  // the only place that needs the full item set for a list.
+  async function pullListItems(listId: string): Promise<void> {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+
+    try {
+      const serverItems = await getListItemsApi(listId)
+      for (const serverItem of serverItems) {
+        const existingItem = await db.listItems.get(serverItem.id)
+        if (!existingItem || !existingItem.pendingSync) {
+          await db.listItems.put({ ...serverItem, pendingSync: false })
+        }
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load list items from server'
+    } finally {
+      await refresh()
+    }
+  }
+
+  async function loadListItems(listId: string) {
+    if (!isLoaded.value) {
+      await refresh()
+    }
+    void pullListItems(listId)
   }
 
   return {
@@ -361,6 +428,7 @@ export const useListsStore = defineStore('lists', () => {
     error,
     itemsForList,
     loadLists,
+    loadListItems,
     refresh,
     createList,
     createListItem,
@@ -368,7 +436,10 @@ export const useListsStore = defineStore('lists', () => {
     setListItemCompleted,
     addUserToList,
     removeUserFromList,
+    deleteList,
+    deleteListItem,
     sync,
     pullFromServer,
+    pullListItems,
   }
 })
