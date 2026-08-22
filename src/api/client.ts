@@ -6,6 +6,17 @@ export { API_BASE_URL, extractErrorMessage }
 
 let refreshPromise: Promise<unknown> | null = null
 
+// Thrown instead of returning the stale 401 Response when redirecting to
+// login, so callers show an accurate message rather than reading `!response.ok`
+// and flashing an unrelated "Failed to ..." banner in the instant before
+// navigation away completes.
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Your session has expired. Please log in again.')
+    this.name = 'SessionExpiredError'
+  }
+}
+
 async function redirectToLogin(): Promise<void> {
   const currentRoute = router.currentRoute.value
   if (currentRoute.name === 'login') {
@@ -57,7 +68,7 @@ export async function fetchWithAuth(
   if (response.status === 401 && !skipRefresh) {
     if (!authStore.refreshToken) {
       await redirectToLogin()
-      return response
+      throw new SessionExpiredError()
     }
 
     try {
@@ -74,7 +85,7 @@ export async function fetchWithAuth(
       })
     } catch {
       await redirectToLogin()
-      return response
+      throw new SessionExpiredError()
     }
   }
 

@@ -88,11 +88,7 @@ async function handleCreateList() {
 
     <ul v-if="listsStore.sortedLists.length > 0" class="lists">
       <li v-for="list in listsStore.sortedLists" :key="list.id">
-        <ListCard
-          :list="list"
-          @share="handleOpenShare(list)"
-          @delete="handleOpenDelete(list)"
-        />
+        <ListCard :list="list" @share="handleOpenShare(list)" @delete="handleOpenDelete(list)" />
       </li>
     </ul>
 

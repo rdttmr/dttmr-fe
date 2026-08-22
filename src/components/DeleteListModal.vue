@@ -38,7 +38,8 @@ function handleConfirm() {
       </div>
 
       <p class="modal-description">
-        Are you sure you want to delete this list? This action cannot be undone and all items in this list will be deleted.
+        Are you sure you want to delete this list? This action cannot be undone and all items in
+        this list will be deleted.
       </p>
 
       <div class="modal-footer">

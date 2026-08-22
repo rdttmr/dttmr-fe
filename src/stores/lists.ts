@@ -1,6 +1,12 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { db, type LocalList, type LocalListItem, type SyncQueueEntry } from '@/database/db'
+import {
+  db,
+  type LocalList,
+  type LocalListItem,
+  type SyncQueueEntry,
+  type NewSyncQueueEntry,
+} from '@/database/db'
 import {
   getListsApi,
   createListApi,
@@ -86,14 +92,27 @@ export const useListsStore = defineStore('lists', () => {
     isLoaded.value = true
   }
 
-  async function loadLists() {
-    if (!isLoaded.value) {
-      await refresh()
+  // Dedupes concurrent first-load refreshes: loadLists() and loadListItems()
+  // are both called from ListDetailView's onMounted and would otherwise each
+  // see isLoaded === false and kick off their own full-table Dexie scan.
+  let loadPromise: Promise<void> | null = null
+
+  async function ensureLoaded() {
+    if (isLoaded.value) return
+    if (!loadPromise) {
+      loadPromise = refresh().finally(() => {
+        loadPromise = null
+      })
     }
+    await loadPromise
+  }
+
+  async function loadLists() {
+    await ensureLoaded()
     void sync()
   }
 
-  async function enqueue(entry: Omit<SyncQueueEntry, 'id' | 'createdAt' | 'attempts'>) {
+  async function enqueue(entry: NewSyncQueueEntry) {
     await db.syncQueue.add({
       ...entry,
       createdAt: Date.now(),
@@ -263,14 +282,16 @@ export const useListsStore = defineStore('lists', () => {
       .filter((entry) => entry.localListId === oldId)
       .toArray()
     for (const entry of affectedQueueEntries) {
-      const payload = entry.payload as { list_id?: string; id?: string }
+      const payload = entry.payload
+      const updatedPayload =
+        'list_id' in payload
+          ? { ...payload, list_id: newId }
+          : 'id' in payload
+            ? { ...payload, id: newId }
+            : payload
       await db.syncQueue.update(entry.id!, {
         localListId: newId,
-        payload: payload?.list_id
-          ? { ...payload, list_id: newId }
-          : payload?.id
-            ? { ...payload, id: newId }
-            : entry.payload,
+        payload: updatedPayload,
       })
     }
   }
@@ -295,14 +316,16 @@ export const useListsStore = defineStore('lists', () => {
       .filter((queueEntry) => queueEntry.localListItemId === oldId)
       .toArray()
     for (const queueEntry of affectedQueueEntries) {
-      const payload = queueEntry.payload as { list_item_id?: string; id?: string }
+      const payload = queueEntry.payload
+      const updatedPayload =
+        'list_item_id' in payload
+          ? { ...payload, list_item_id: newId }
+          : 'id' in payload
+            ? { ...payload, id: newId }
+            : payload
       await db.syncQueue.update(queueEntry.id!, {
         localListItemId: newId,
-        payload: payload?.list_item_id
-          ? { ...payload, list_item_id: newId }
-          : payload?.id
-            ? { ...payload, id: newId }
-            : queueEntry.payload,
+        payload: updatedPayload,
       })
     }
   }
@@ -316,7 +339,7 @@ export const useListsStore = defineStore('lists', () => {
   async function processSyncEntry(entry: SyncQueueEntry) {
     switch (entry.type) {
       case 'createList': {
-        const created = await createListApi(entry.payload as { name: string; user_ids?: string[] })
+        const created = await createListApi(entry.payload)
         if (entry.localListId) {
           await remapListId(entry.localListId, created.id)
         }
@@ -327,16 +350,14 @@ export const useListsStore = defineStore('lists', () => {
         // created item (with its own real id) in the response body, so we
         // remap our client-generated placeholder id to it instead of keeping
         // the made-up one around.
-        const created = await createListItemApi(entry.payload as { list_id: string; title: string })
+        const created = await createListItemApi(entry.payload)
         if (entry.localListItemId) {
           await remapListItemId(entry.localListItemId, created.id)
         }
         break
       }
       case 'updateListItem': {
-        await updateListItemApi(
-          entry.payload as { list_item_id: string; title?: string; is_completed?: boolean },
-        )
+        await updateListItemApi(entry.payload)
         if (entry.localListItemId) {
           await markListItemSynced(entry.localListItemId)
         }
@@ -344,21 +365,16 @@ export const useListsStore = defineStore('lists', () => {
       }
       case 'setListItemCompleted': {
         if (!entry.localListItemId) break
-        await setListItemCompletedApi(
-          entry.localListItemId,
-          entry.payload as { is_completed: boolean },
-        )
+        await setListItemCompletedApi(entry.localListItemId, entry.payload)
         await markListItemSynced(entry.localListItemId)
         break
       }
       case 'deleteList': {
-        const payload = entry.payload as { id: string }
-        await deleteListApi(payload.id)
+        await deleteListApi(entry.payload.id)
         break
       }
       case 'deleteListItem': {
-        const payload = entry.payload as { id: string }
-        await deleteListItemApi(payload.id)
+        await deleteListItemApi(entry.payload.id)
         break
       }
     }
@@ -533,9 +549,7 @@ export const useListsStore = defineStore('lists', () => {
   }
 
   async function loadListItems(listId: string) {
-    if (!isLoaded.value) {
-      await refresh()
-    }
+    await ensureLoaded()
     void pullListItems(listId)
   }
 

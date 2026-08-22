@@ -2,26 +2,25 @@
 import { ref } from 'vue'
 import type { LocalListItem } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
-import { useClickOutside } from '@/composables/useClickOutside'
-import { useEscapeKey } from '@/composables/useEscapeKey'
+import { useDismissableMenu } from '@/composables/useDismissableMenu'
 
 const props = defineProps<{ item: LocalListItem }>()
-const emit = defineEmits<{
-  delete: [item: LocalListItem]
-}>()
 
 const listsStore = useListsStore()
 const isEditing = ref(false)
 const editedTitle = ref(props.item.title)
-const isMenuOpen = ref(false)
-const menuContainerRef = ref<HTMLElement | null>(null)
-
-useClickOutside(menuContainerRef, () => {
-  isMenuOpen.value = false
-})
-useEscapeKey(() => {
-  if (isMenuOpen.value) isMenuOpen.value = false
-})
+// Captured separately from `editedTitle` at the moment editing starts: if the
+// item is updated remotely (another device) while the field is open,
+// `props.item.title` moves but this doesn't, so saveTitle() can tell "user
+// didn't touch it" apart from "server changed underneath us" instead of
+// diffing against the live (possibly just-changed) prop and overwriting the
+// remote edit with the untouched original text.
+const originalTitle = ref(props.item.title)
+const {
+  isOpen: isMenuOpen,
+  containerRef: menuContainerRef,
+  toggle: toggleMenu,
+} = useDismissableMenu()
 
 function toggleCompleted() {
   listsStore.setListItemCompleted(props.item.id, !props.item.is_completed)
@@ -29,31 +28,24 @@ function toggleCompleted() {
 
 function startEditing() {
   editedTitle.value = props.item.title
+  originalTitle.value = props.item.title
   isEditing.value = true
 }
 
 function saveTitle() {
   const title = editedTitle.value.trim()
-  if (title && title !== props.item.title) {
+  if (title && title !== originalTitle.value) {
     listsStore.updateListItem(props.item.id, { title })
   }
   isEditing.value = false
-}
-
-function toggleMenu(event: Event) {
-  event.preventDefault()
-  event.stopPropagation()
-  isMenuOpen.value = !isMenuOpen.value
 }
 
 function handleDelete(event: Event) {
   event.preventDefault()
   event.stopPropagation()
   isMenuOpen.value = false
-  emit('delete', props.item)
   listsStore.deleteListItem(props.item.id)
 }
-
 </script>
 
 <template>
@@ -114,7 +106,9 @@ function handleDelete(event: Event) {
             stroke-linejoin="round"
           >
             <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <path
+              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            />
             <line x1="10" y1="11" x2="10" y2="17" />
             <line x1="14" y1="11" x2="14" y2="17" />
           </svg>
