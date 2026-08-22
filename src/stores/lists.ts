@@ -50,10 +50,6 @@ export const useListsStore = defineStore('lists', () => {
     if (!isLoaded.value) {
       await refresh()
     }
-    // The server is the source of truth: even though we already have a
-    // local snapshot to render instantly (including while offline), always
-    // kick off a background sync/pull so views reflect the latest server
-    // state on every visit, not just on the first load of the session.
     void sync()
   }
 

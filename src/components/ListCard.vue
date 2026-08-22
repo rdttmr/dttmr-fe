@@ -14,10 +14,6 @@ const listsStore = useListsStore()
 const isMenuOpen = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
 
-// The server now reports total_items/completed_items directly on the list,
-// so the overview can show progress without having to load every item of
-// every list. Fall back to counting locally cached items for lists that
-// haven't synced to the server yet (e.g. just created while offline).
 const items = computed(() => listsStore.itemsForList(props.list.id))
 const totalCount = computed(() => props.list.total_items ?? items.value.length)
 const completedCount = computed(

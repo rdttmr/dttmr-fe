@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
+import type { LocalListItem } from '@/database/db'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
 
@@ -43,8 +44,17 @@ onUnmounted(() => {
 
 const list = computed(() => listsStore.lists.find((entry) => entry.id === props.id))
 const items = computed(() => listsStore.itemsForList(props.id))
-const pendingItems = computed(() => items.value.filter((item) => !item.is_completed))
-const completedItems = computed(() => items.value.filter((item) => item.is_completed))
+
+function byModifiedDesc(a: LocalListItem, b: LocalListItem) {
+  return (b.modified_at ?? '').localeCompare(a.modified_at ?? '')
+}
+
+const pendingItems = computed(() =>
+  items.value.filter((item) => !item.is_completed).sort(byModifiedDesc),
+)
+const completedItems = computed(() =>
+  items.value.filter((item) => item.is_completed).sort(byModifiedDesc),
+)
 
 function toggleMenu(event: Event) {
   event.preventDefault()
