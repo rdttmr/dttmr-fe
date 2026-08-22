@@ -1,29 +1,17 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
 import type { LocalList } from '@/database/db'
+import { useEscapeKey } from '@/composables/useEscapeKey'
 
 defineProps<{
   list: LocalList
 }>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
-  (e: 'confirm'): void
+  close: []
+  confirm: []
 }>()
 
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-})
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    handleClose()
-  }
-}
+useEscapeKey(handleClose)
 
 function handleClose() {
   emit('close')
@@ -50,7 +38,8 @@ function handleConfirm() {
       </div>
 
       <p class="modal-description">
-        Are you sure you want to delete this list? This action cannot be undone and all items in this list will be deleted.
+        Are you sure you want to delete this list? This action cannot be undone and all items in
+        this list will be deleted.
       </p>
 
       <div class="modal-footer">

@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client'
+import { extractErrorMessage } from '@/api/http'
 import type {
   List,
   ListItem,
@@ -9,15 +10,6 @@ import type {
   AddUserToListPayload,
   RemoveUserFromListPayload,
 } from '@/types/list'
-
-async function extractErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const errorData = await response.json()
-    return errorData.message || errorData.error || fallback
-  } catch {
-    return response.statusText || fallback
-  }
-}
 
 export async function getListsApi(): Promise<List[]> {
   const response = await apiClient.get('/lists')
@@ -76,9 +68,7 @@ export async function addUserToListApi(payload: AddUserToListPayload): Promise<v
 }
 
 export async function removeUserFromListApi(payload: RemoveUserFromListPayload): Promise<void> {
-  const response = await apiClient.delete('/lists/user', {
-    body: JSON.stringify(payload),
-  })
+  const response = await apiClient.delete('/lists/user', payload)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to remove user from list'))
   }

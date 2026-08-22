@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 type Record = { id?: unknown; [key: string]: unknown }
@@ -37,6 +37,17 @@ function createFakeTable(autoIncrement = false) {
     async count() {
       return store.size
     },
+    async bulkPut(records: Record[]) {
+      for (const record of records) {
+        store.set(record.id, { ...record })
+      }
+      return records.map((record) => record.id)
+    },
+    async bulkDelete(ids: unknown[]) {
+      for (const id of ids) {
+        store.delete(id)
+      }
+    },
     where(field: string) {
       return {
         equals(value: unknown) {
@@ -45,6 +56,16 @@ function createFakeTable(autoIncrement = false) {
               return Array.from(store.values())
                 .filter((v) => v[field] === value)
                 .map((v) => ({ ...v }))
+            },
+            async delete() {
+              const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
+              for (const [key] of matches) store.delete(key)
+              return matches.length
+            },
+            async modify(changes: Record) {
+              const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
+              for (const [key, v] of matches) store.set(key, { ...v, ...changes })
+              return matches.length
             },
           }
         },
@@ -102,6 +123,10 @@ const { useListsStore } = await import('../lists')
 
 describe('useListsStore', () => {
   beforeEach(async () => {
+    // Mutations schedule a debounced sync() via setTimeout; faking timers
+    // keeps that pending timer from firing against a later test's mocks
+    // instead of the ones set up here (tests trigger sync() explicitly).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     setActivePinia(createPinia())
     vi.restoreAllMocks()
     Object.values(listsApiMocks).forEach((mock) => mock.mockReset())
@@ -119,6 +144,10 @@ describe('useListsStore', () => {
     // step chained onto every sync() call doesn't interfere with unrelated tests.
     listsApiMocks.getListsApi.mockResolvedValue([])
     listsApiMocks.getListItemsApi.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('creates a list locally, queues a sync entry, and remaps the id after a successful sync', async () => {
@@ -406,5 +435,120 @@ describe('useListsStore', () => {
     )
 
     expect(store.pendingCount).toBe(0)
+  })
+
+  it('removes user from list on the server when online without adding to sync queue', async () => {
+    listsApiMocks.removeUserFromListApi.mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await store.removeUserFromList('list-1', 'friend@example.com')
+
+    expect(listsApiMocks.removeUserFromListApi).toHaveBeenCalledWith({
+      list_id: 'list-1',
+      email: 'friend@example.com',
+    })
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('throws error when removing user from list while offline without calling API', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+
+    const store = useListsStore()
+    await expect(store.removeUserFromList('list-1', 'friend@example.com')).rejects.toThrow(
+      'Cannot remove user from list while offline',
+    )
+
+    expect(listsApiMocks.removeUserFromListApi).not.toHaveBeenCalled()
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('propagates error when removing user from list fails on server', async () => {
+    listsApiMocks.removeUserFromListApi.mockRejectedValueOnce(new Error('User not found'))
+
+    const store = useListsStore()
+    await expect(store.removeUserFromList('list-1', 'unknown@example.com')).rejects.toThrow(
+      'User not found',
+    )
+
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('does not sync before the debounce delay elapses, then syncs once it does', async () => {
+    listsApiMocks.createListItemApi.mockResolvedValueOnce({
+      id: 'server-item-1',
+      list_id: 'list-1',
+      title: 'Milk',
+      is_completed: false,
+    })
+
+    const store = useListsStore()
+    await store.createListItem('list-1', 'Milk')
+
+    await vi.advanceTimersByTimeAsync(399)
+    expect(listsApiMocks.createListItemApi).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(listsApiMocks.createListItemApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('collapses a burst of mutations within the debounce window into a single sync pass', async () => {
+    listsApiMocks.createListItemApi
+      .mockResolvedValueOnce({
+        id: 'server-item-a',
+        list_id: 'list-1',
+        title: 'A',
+        is_completed: false,
+      })
+      .mockResolvedValueOnce({
+        id: 'server-item-b',
+        list_id: 'list-1',
+        title: 'B',
+        is_completed: false,
+      })
+
+    const store = useListsStore()
+    await store.createListItem('list-1', 'A')
+    await store.createListItem('list-1', 'B')
+
+    expect(listsApiMocks.createListItemApi).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(listsApiMocks.createListItemApi).toHaveBeenCalledTimes(2)
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('serializes pullListItems() behind an in-flight sync() so they never race on the same rows', async () => {
+    let resolveGetLists!: (value: unknown[]) => void
+    listsApiMocks.getListsApi.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveGetLists = resolve
+        }),
+    )
+    listsApiMocks.getListItemsApi.mockResolvedValueOnce([
+      { id: 'server-item-1', list_id: 'list-1', title: 'Milk', is_completed: false },
+    ])
+
+    const store = useListsStore()
+
+    const syncPromise = store.sync()
+    const pullPromise = store.pullListItems('list-1')
+
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // pullListItems is chained behind sync() via the shared operation queue,
+    // so its own (already-mocked, instantly resolvable) API call must not
+    // fire while sync()'s getListsApi call is still pending.
+    expect(listsApiMocks.getListItemsApi).not.toHaveBeenCalled()
+
+    resolveGetLists([])
+    await syncPromise
+    await pullPromise
+
+    expect(listsApiMocks.getListItemsApi).toHaveBeenCalledWith('list-1')
+    expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeDefined()
   })
 })

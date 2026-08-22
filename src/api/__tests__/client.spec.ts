@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { fetchWithAuth, apiClient } from '../client'
+import { fetchWithAuth, apiClient, SessionExpiredError } from '../client'
 import { useAuthStore } from '@/stores/auth'
 import * as authApi from '@/api/auth'
 import router from '@/router'
@@ -122,7 +122,7 @@ describe('api client (fetchWithAuth)', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await fetchWithAuth('/lists')
+    await expect(fetchWithAuth('/lists')).rejects.toThrow(SessionExpiredError)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(router.currentRoute.value.name).toBe('login')
@@ -144,7 +144,7 @@ describe('api client (fetchWithAuth)', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await fetchWithAuth('/lists')
+    await expect(fetchWithAuth('/lists')).rejects.toThrow(SessionExpiredError)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(authStore.accessToken).toBeNull()

@@ -1,34 +1,37 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { LocalList } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
+import { useDismissableMenu } from '@/composables/useDismissableMenu'
 
 const props = defineProps<{ list: LocalList }>()
 const emit = defineEmits<{
-  (e: 'share', list: LocalList): void
-  (e: 'delete', list: LocalList): void
+  share: [list: LocalList]
+  delete: [list: LocalList]
 }>()
 
 const listsStore = useListsStore()
-const isMenuOpen = ref(false)
-const menuContainerRef = ref<HTMLElement | null>(null)
+const {
+  isOpen: isMenuOpen,
+  containerRef: menuContainerRef,
+  toggle: toggleMenu,
+} = useDismissableMenu()
 
-// The server now reports total_items/completed_items directly on the list,
-// so the overview can show progress without having to load every item of
-// every list. Fall back to counting locally cached items for lists that
-// haven't synced to the server yet (e.g. just created while offline).
-const items = computed(() => listsStore.itemsForList(props.list.id))
-const totalCount = computed(() => props.list.total_items ?? items.value.length)
-const completedCount = computed(
-  () => props.list.completed_items ?? items.value.filter((item) => item.is_completed).length,
+// The server always reports total_items/completed_items once a list has
+// synced at least once, so the common case never touches the store's full
+// item list at all - only a list that hasn't synced yet falls back to
+// scanning its own items.
+const totalCount = computed(() =>
+  props.list.total_items !== undefined
+    ? props.list.total_items
+    : listsStore.itemsForList(props.list.id).length,
 )
-
-function toggleMenu(event: Event) {
-  event.preventDefault()
-  event.stopPropagation()
-  isMenuOpen.value = !isMenuOpen.value
-}
+const completedCount = computed(() =>
+  props.list.completed_items !== undefined
+    ? props.list.completed_items
+    : listsStore.itemsForList(props.list.id).filter((item) => item.is_completed).length,
+)
 
 function handleShare(event: Event) {
   event.preventDefault()
@@ -43,28 +46,6 @@ function handleDelete(event: Event) {
   isMenuOpen.value = false
   emit('delete', props.list)
 }
-
-function handleClickOutside(event: MouseEvent) {
-  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMenuOpen.value) {
-    isMenuOpen.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
-})
 </script>
 
 <template>
@@ -132,7 +113,9 @@ onUnmounted(() => {
             stroke-linejoin="round"
           >
             <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <path
+              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            />
             <line x1="10" y1="11" x2="10" y2="17" />
             <line x1="14" y1="11" x2="14" y2="17" />
           </svg>

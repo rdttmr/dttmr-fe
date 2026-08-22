@@ -1,5 +1,12 @@
 import Dexie, { type Table } from 'dexie'
-import type { List, ListItem } from '@/types/list'
+import type {
+  List,
+  ListItem,
+  CreateListPayload,
+  CreateListItemPayload,
+  UpdateListItemPayload,
+  SetListItemCompletedPayload,
+} from '@/types/list'
 
 export interface LocalList extends List {
   pendingSync?: boolean
@@ -9,25 +16,45 @@ export interface LocalListItem extends ListItem {
   pendingSync?: boolean
 }
 
-export type SyncOperationType =
-  | 'createList'
-  | 'createListItem'
-  | 'updateListItem'
-  | 'setListItemCompleted'
-  | 'removeUserFromList'
-  | 'deleteList'
-  | 'deleteListItem'
+export interface DeleteListPayload {
+  id: string
+}
 
-export interface SyncQueueEntry {
+export interface DeleteListItemPayload {
+  id: string
+}
+
+interface SyncQueueEntryBase {
   id?: number
-  type: SyncOperationType
-  payload: unknown
   localListId?: string
   localListItemId?: string
   createdAt: number
   attempts: number
   lastError?: string
 }
+
+type SyncOperationPayloads = {
+  createList: CreateListPayload
+  createListItem: CreateListItemPayload
+  updateListItem: UpdateListItemPayload
+  setListItemCompleted: SetListItemCompletedPayload
+  deleteList: DeleteListPayload
+  deleteListItem: DeleteListItemPayload
+}
+
+export type SyncOperationType = keyof SyncOperationPayloads
+
+// A discriminated union keyed on `type` instead of a single `payload: unknown`
+// shape, so `processSyncEntry`'s switch narrows `entry.payload` to the right
+// type per case without a manual cast - and adding/changing an operation type
+// here is a compile error everywhere it's handled inconsistently.
+export type SyncQueueEntry = {
+  [K in SyncOperationType]: SyncQueueEntryBase & { type: K; payload: SyncOperationPayloads[K] }
+}[SyncOperationType]
+
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never
+
+export type NewSyncQueueEntry = DistributiveOmit<SyncQueueEntry, 'id' | 'createdAt' | 'attempts'>
 
 class AppDatabase extends Dexie {
   lists!: Table<LocalList, string>

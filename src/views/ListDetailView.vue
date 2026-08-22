@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
+import type { LocalListItem } from '@/database/db'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
+import { useDismissableMenu } from '@/composables/useDismissableMenu'
 
 const props = defineProps<{ id: string }>()
 
@@ -13,44 +15,41 @@ const listsStore = useListsStore()
 const newItemTitle = ref('')
 const isAddingItem = ref(false)
 const itemError = ref('')
-const isMenuOpen = ref(false)
 const showDeleteModal = ref(false)
-const menuContainerRef = ref<HTMLElement | null>(null)
-
-function handleClickOutside(event: MouseEvent) {
-  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMenuOpen.value) {
-    isMenuOpen.value = false
-  }
-}
+const {
+  isOpen: isMenuOpen,
+  containerRef: menuContainerRef,
+  toggle: toggleMenu,
+} = useDismissableMenu()
 
 onMounted(() => {
   listsStore.loadLists()
   listsStore.loadListItems(props.id)
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
 })
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
-})
+// Vue Router reuses this component instance when navigating between two
+// list-detail routes, so the initial onMounted load alone would leave a
+// newly-navigated-to list's items unfetched.
+watch(
+  () => props.id,
+  (newId) => {
+    listsStore.loadListItems(newId)
+  },
+)
 
 const list = computed(() => listsStore.lists.find((entry) => entry.id === props.id))
 const items = computed(() => listsStore.itemsForList(props.id))
-const pendingItems = computed(() => items.value.filter((item) => !item.is_completed))
-const completedItems = computed(() => items.value.filter((item) => item.is_completed))
 
-function toggleMenu(event: Event) {
-  event.preventDefault()
-  event.stopPropagation()
-  isMenuOpen.value = !isMenuOpen.value
+function byModifiedDesc(a: LocalListItem, b: LocalListItem) {
+  return (b.modified_at ?? '').localeCompare(a.modified_at ?? '')
 }
+
+const pendingItems = computed(() =>
+  items.value.filter((item) => !item.is_completed).sort(byModifiedDesc),
+)
+const completedItems = computed(() =>
+  items.value.filter((item) => item.is_completed).sort(byModifiedDesc),
+)
 
 function handleOpenDelete() {
   isMenuOpen.value = false
@@ -131,7 +130,9 @@ async function handleAddItem() {
                 stroke-linejoin="round"
               >
                 <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path
+                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                />
                 <line x1="10" y1="11" x2="10" y2="17" />
                 <line x1="14" y1="11" x2="14" y2="17" />
               </svg>

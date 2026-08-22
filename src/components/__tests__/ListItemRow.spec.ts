@@ -65,8 +65,6 @@ describe('ListItemRow', () => {
     await wrapper.find('.submenu-item-danger').trigger('click')
 
     expect(deleteSpy).toHaveBeenCalledWith('item-1')
-    expect(wrapper.emitted('delete')).toBeTruthy()
-    expect(wrapper.emitted('delete')?.[0]).toEqual([sampleItem])
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
   })
 })

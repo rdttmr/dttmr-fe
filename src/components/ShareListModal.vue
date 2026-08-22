@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import type { LocalList } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
+import { useEscapeKey } from '@/composables/useEscapeKey'
 
 const props = defineProps<{
   list: LocalList
 }>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
+  close: []
 }>()
 
 const listsStore = useListsStore()
@@ -19,22 +20,13 @@ const isSubmitting = ref(false)
 const error = ref('')
 const successMessage = ref('')
 
+useEscapeKey(handleClose)
+
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
   nextTick(() => {
     emailInput.value?.focus()
   })
 })
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-})
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    handleClose()
-  }
-}
 
 function handleClose() {
   emit('close')
