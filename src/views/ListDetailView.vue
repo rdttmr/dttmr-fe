@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
 import type { LocalListItem } from '@/database/db'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
+import { useClickOutside } from '@/composables/useClickOutside'
+import { useEscapeKey } from '@/composables/useEscapeKey'
 
 const props = defineProps<{ id: string }>()
 
@@ -18,28 +20,16 @@ const isMenuOpen = ref(false)
 const showDeleteModal = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
 
-function handleClickOutside(event: MouseEvent) {
-  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMenuOpen.value) {
-    isMenuOpen.value = false
-  }
-}
+useClickOutside(menuContainerRef, () => {
+  isMenuOpen.value = false
+})
+useEscapeKey(() => {
+  if (isMenuOpen.value) isMenuOpen.value = false
+})
 
 onMounted(() => {
   listsStore.loadLists()
   listsStore.loadListItems(props.id)
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
 })
 
 const list = computed(() => listsStore.lists.find((entry) => entry.id === props.id))

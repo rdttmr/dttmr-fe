@@ -29,6 +29,7 @@ async function handleLogout() {
       <span v-if="listsStore.pendingCount > 0" class="pending">
         {{ listsStore.pendingCount }} pending
       </span>
+      <span v-if="listsStore.error" class="sync-error" :title="listsStore.error">⚠ sync error</span>
       <button v-if="authStore.isAuthenticated" type="button" class="logout" @click="handleLogout">
         Log out
       </button>
@@ -83,6 +84,11 @@ async function handleLogout() {
 
 .sync-dot.offline {
   background-color: var(--c-text-soft);
+}
+
+.sync-error {
+  color: var(--c-danger);
+  cursor: help;
 }
 
 .logout {

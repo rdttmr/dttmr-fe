@@ -1,15 +1,7 @@
 import type { LoginPayload, RefreshPayload, TokenPair } from '@/types/auth'
+import { API_BASE_URL, extractErrorMessage } from '@/api/http'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
-
-async function extractErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const errorData = await response.json()
-    return errorData.message || errorData.error || fallback
-  } catch {
-    return response.statusText || fallback
-  }
-}
+export { API_BASE_URL }
 
 async function postJson(
   path: string,

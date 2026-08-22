@@ -1,24 +1,42 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { LocalList } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
+import { useClickOutside } from '@/composables/useClickOutside'
+import { useEscapeKey } from '@/composables/useEscapeKey'
 
 const props = defineProps<{ list: LocalList }>()
 const emit = defineEmits<{
-  (e: 'share', list: LocalList): void
-  (e: 'delete', list: LocalList): void
+  share: [list: LocalList]
+  delete: [list: LocalList]
 }>()
 
 const listsStore = useListsStore()
 const isMenuOpen = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
 
-const items = computed(() => listsStore.itemsForList(props.list.id))
-const totalCount = computed(() => props.list.total_items ?? items.value.length)
-const completedCount = computed(
-  () => props.list.completed_items ?? items.value.filter((item) => item.is_completed).length,
+// The server always reports total_items/completed_items once a list has
+// synced at least once, so the common case never touches the store's full
+// item list at all - only a list that hasn't synced yet falls back to
+// scanning its own items.
+const totalCount = computed(() =>
+  props.list.total_items !== undefined
+    ? props.list.total_items
+    : listsStore.itemsForList(props.list.id).length,
 )
+const completedCount = computed(() =>
+  props.list.completed_items !== undefined
+    ? props.list.completed_items
+    : listsStore.itemsForList(props.list.id).filter((item) => item.is_completed).length,
+)
+
+useClickOutside(menuContainerRef, () => {
+  isMenuOpen.value = false
+})
+useEscapeKey(() => {
+  if (isMenuOpen.value) isMenuOpen.value = false
+})
 
 function toggleMenu(event: Event) {
   event.preventDefault()
@@ -40,27 +58,6 @@ function handleDelete(event: Event) {
   emit('delete', props.list)
 }
 
-function handleClickOutside(event: MouseEvent) {
-  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMenuOpen.value) {
-    isMenuOpen.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
-})
 </script>
 
 <template>

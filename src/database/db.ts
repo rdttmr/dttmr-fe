@@ -14,7 +14,6 @@ export type SyncOperationType =
   | 'createListItem'
   | 'updateListItem'
   | 'setListItemCompleted'
-  | 'removeUserFromList'
   | 'deleteList'
   | 'deleteListItem'
 

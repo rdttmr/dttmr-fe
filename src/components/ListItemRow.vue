@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import type { LocalListItem } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
+import { useClickOutside } from '@/composables/useClickOutside'
+import { useEscapeKey } from '@/composables/useEscapeKey'
 
 const props = defineProps<{ item: LocalListItem }>()
 const emit = defineEmits<{
-  (e: 'delete', item: LocalListItem): void
+  delete: [item: LocalListItem]
 }>()
 
 const listsStore = useListsStore()
@@ -13,6 +15,13 @@ const isEditing = ref(false)
 const editedTitle = ref(props.item.title)
 const isMenuOpen = ref(false)
 const menuContainerRef = ref<HTMLElement | null>(null)
+
+useClickOutside(menuContainerRef, () => {
+  isMenuOpen.value = false
+})
+useEscapeKey(() => {
+  if (isMenuOpen.value) isMenuOpen.value = false
+})
 
 function toggleCompleted() {
   listsStore.setListItemCompleted(props.item.id, !props.item.is_completed)
@@ -45,27 +54,6 @@ function handleDelete(event: Event) {
   listsStore.deleteListItem(props.item.id)
 }
 
-function handleClickOutside(event: MouseEvent) {
-  if (menuContainerRef.value && !menuContainerRef.value.contains(event.target as Node)) {
-    isMenuOpen.value = false
-  }
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isMenuOpen.value) {
-    isMenuOpen.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-  document.removeEventListener('keydown', handleKeydown)
-})
 </script>
 
 <template>

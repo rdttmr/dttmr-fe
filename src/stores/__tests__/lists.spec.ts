@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 type Record = { id?: unknown; [key: string]: unknown }
@@ -37,6 +37,17 @@ function createFakeTable(autoIncrement = false) {
     async count() {
       return store.size
     },
+    async bulkPut(records: Record[]) {
+      for (const record of records) {
+        store.set(record.id, { ...record })
+      }
+      return records.map((record) => record.id)
+    },
+    async bulkDelete(ids: unknown[]) {
+      for (const id of ids) {
+        store.delete(id)
+      }
+    },
     where(field: string) {
       return {
         equals(value: unknown) {
@@ -45,6 +56,16 @@ function createFakeTable(autoIncrement = false) {
               return Array.from(store.values())
                 .filter((v) => v[field] === value)
                 .map((v) => ({ ...v }))
+            },
+            async delete() {
+              const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
+              for (const [key] of matches) store.delete(key)
+              return matches.length
+            },
+            async modify(changes: Record) {
+              const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
+              for (const [key, v] of matches) store.set(key, { ...v, ...changes })
+              return matches.length
             },
           }
         },
@@ -102,6 +123,10 @@ const { useListsStore } = await import('../lists')
 
 describe('useListsStore', () => {
   beforeEach(async () => {
+    // Mutations schedule a debounced sync() via setTimeout; faking timers
+    // keeps that pending timer from firing against a later test's mocks
+    // instead of the ones set up here (tests trigger sync() explicitly).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     setActivePinia(createPinia())
     vi.restoreAllMocks()
     Object.values(listsApiMocks).forEach((mock) => mock.mockReset())
@@ -119,6 +144,10 @@ describe('useListsStore', () => {
     // step chained onto every sync() call doesn't interfere with unrelated tests.
     listsApiMocks.getListsApi.mockResolvedValue([])
     listsApiMocks.getListItemsApi.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('creates a list locally, queues a sync entry, and remaps the id after a successful sync', async () => {

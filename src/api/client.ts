@@ -1,6 +1,8 @@
 import { useAuthStore } from '@/stores/auth'
-import { API_BASE_URL } from '@/api/auth'
 import router from '@/router'
+import { API_BASE_URL, extractErrorMessage } from '@/api/http'
+
+export { API_BASE_URL, extractErrorMessage }
 
 let refreshPromise: Promise<unknown> | null = null
 
@@ -94,6 +96,10 @@ export const apiClient = {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     }),
-  delete: (endpoint: string, options?: FetchOptions) =>
-    fetchWithAuth(endpoint, { ...options, method: 'DELETE' }),
+  delete: (endpoint: string, body?: unknown, options?: FetchOptions) =>
+    fetchWithAuth(endpoint, {
+      ...options,
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 }
