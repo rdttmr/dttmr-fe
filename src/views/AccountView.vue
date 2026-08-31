@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useListsStore } from '@/stores/lists'
 import { useAuthStore } from '@/stores/auth'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+import InvitesPanel from '@/components/InvitesPanel.vue'
 
 const listsStore = useListsStore()
 const authStore = useAuthStore()
@@ -33,6 +34,8 @@ onMounted(() => {
         Change password
       </button>
     </section>
+
+    <InvitesPanel />
 
     <h1>Pending changes</h1>
 
