@@ -8,6 +8,12 @@ describe('InvitesPanel', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined) },
+      configurable: true,
+    })
+    // jsdom has no Web Share API; tests that want it define it explicitly.
+    Reflect.deleteProperty(navigator, 'share')
   })
 
   it('renders collapsed by default without loading invites', () => {
@@ -76,6 +82,60 @@ describe('InvitesPanel', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('NEWCODE1')
+  })
+
+  it('shares the newly created invite automatically', async () => {
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([])
+    const newInvite: Invite = { id: 'invite-new', code: 'NEWCODE1' }
+    vi.spyOn(invitesApi, 'createInviteApi').mockResolvedValueOnce(newInvite)
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.generate-btn').trigger('click')
+    await flushPromises()
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('?invite=NEWCODE1'),
+    )
+  })
+
+  it('shares an existing invite link via the clipboard when Web Share is unavailable', async () => {
+    const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([mockInvite])
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.ticket-btn').trigger('click')
+    await flushPromises()
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('?invite=ABC123'),
+    )
+    expect(wrapper.text()).toContain('Copied!')
+  })
+
+  it('uses the Web Share API instead of the clipboard when available', async () => {
+    const shareMock = vi.fn<(data: ShareData) => Promise<void>>().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', { value: shareMock, configurable: true })
+
+    const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([mockInvite])
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.ticket-btn').trigger('click')
+    await flushPromises()
+
+    expect(shareMock).toHaveBeenCalledWith(
+      expect.objectContaining({ url: expect.stringContaining('?invite=ABC123') }),
+    )
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 
   it('deletes an invite after confirming', async () => {

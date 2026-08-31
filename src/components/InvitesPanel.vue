@@ -12,17 +12,17 @@ const isCreating = ref(false)
 const error = ref('')
 const pendingDeleteId = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
-const copiedId = ref<string | null>(null)
+const sharedId = ref<string | null>(null)
 
 let hasLoaded = false
-let copiedTimeout: ReturnType<typeof setTimeout> | undefined
+let sharedTimeout: ReturnType<typeof setTimeout> | undefined
 
 const activeCount = computed(
   () => invites.value.filter((invite) => inviteStatus(invite) === 'active').length,
 )
 
 onBeforeUnmount(() => {
-  clearTimeout(copiedTimeout)
+  clearTimeout(sharedTimeout)
 })
 
 function isOffline(): boolean {
@@ -66,6 +66,9 @@ async function handleCreate() {
     const invite = await createInviteApi()
     invites.value = [invite, ...invites.value]
     hasLoaded = true
+    // Sharing is the whole point of an invite, so offer it immediately
+    // instead of making the user hunt for the Share button afterwards.
+    await shareInvite(invite)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create invite'
   } finally {
@@ -102,13 +105,34 @@ async function confirmDelete(id: string) {
   }
 }
 
-async function copyCode(invite: Invite) {
+// The link that lands someone on the (otherwise unlinked) register page —
+// see router.beforeEach, which redirects any URL carrying ?invite=... there.
+function getInviteUrl(code: string): string {
+  const base = `${window.location.origin}${import.meta.env.BASE_URL}`
+  return `${base}?invite=${encodeURIComponent(code)}`
+}
+
+async function shareInvite(invite: Invite) {
+  const url = getInviteUrl(invite.code)
+
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: 'Join dttmr', text: 'Use this link to create your account', url })
+      return
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return
+      }
+      // Web Share unsupported in this context; fall through to clipboard copy.
+    }
+  }
+
   try {
-    await navigator.clipboard.writeText(invite.code)
-    copiedId.value = invite.id
-    clearTimeout(copiedTimeout)
-    copiedTimeout = setTimeout(() => {
-      copiedId.value = null
+    await navigator.clipboard.writeText(url)
+    sharedId.value = invite.id
+    clearTimeout(sharedTimeout)
+    sharedTimeout = setTimeout(() => {
+      sharedId.value = null
     }, 1500)
   } catch {
     // Clipboard access denied or unavailable; nothing sensible to do.
@@ -203,8 +227,8 @@ function inviteDetail(invite: Invite): string {
             <span class="invite-detail">{{ inviteDetail(invite) }}</span>
 
             <div v-if="pendingDeleteId !== invite.id" class="invite-actions">
-              <button type="button" class="ticket-btn" @click="copyCode(invite)">
-                {{ copiedId === invite.id ? 'Copied!' : 'Copy' }}
+              <button type="button" class="ticket-btn" @click="shareInvite(invite)">
+                {{ sharedId === invite.id ? 'Copied!' : 'Share' }}
               </button>
               <button
                 type="button"
