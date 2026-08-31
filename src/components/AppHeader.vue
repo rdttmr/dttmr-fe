@@ -78,9 +78,10 @@ const stampTitle = computed(() => {
 }
 
 .brand-name {
-  font-family: var(--font-stamp);
-  font-size: 0.95rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
 }
 
 .brand-seal {

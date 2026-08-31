@@ -376,8 +376,9 @@ function inviteDetail(invite: Invite): string {
   font-size: 0.95rem;
   letter-spacing: 0.06em;
   color: var(--c-heading);
-  min-width: 0;
   flex: 1 1 auto;
+  min-width: 0;
+  max-width: 24ch;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
