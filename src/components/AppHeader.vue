@@ -13,13 +13,6 @@ async function handleLogout() {
   router.push('/login')
 }
 
-const stampLabel = computed(() => {
-  if (!authStore.isAuthenticated) return 'offline'
-  if (listsStore.isSyncing) return 'syncing'
-  if (listsStore.pendingCount > 0) return `${listsStore.pendingCount} pending`
-  return 'synced'
-})
-
 const stampClass = computed(() => {
   if (!authStore.isAuthenticated) return ''
   if (listsStore.pendingCount > 0 || listsStore.isSyncing) return 'stamp-pending'
@@ -46,15 +39,17 @@ const stampTitle = computed(() => {
         v-if="listsStore.error"
         class="stamp stamp-danger"
         :title="listsStore.error"
-        >sync error</span
-      >
+        :aria-label="listsStore.error"
+        role="img"
+      ></span>
       <span
         v-else
         class="stamp"
         :class="stampClass"
         :title="stampTitle"
-        >{{ stampLabel }}</span
-      >
+        :aria-label="stampTitle"
+        role="img"
+      ></span>
       <button v-if="authStore.isAuthenticated" type="button" class="logout" @click="handleLogout">
         Log out
       </button>
@@ -83,9 +78,10 @@ const stampTitle = computed(() => {
 }
 
 .brand-name {
-  font-family: var(--font-stamp);
-  font-size: 0.95rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
 }
 
 .brand-seal {
@@ -119,6 +115,14 @@ const stampTitle = computed(() => {
   border-radius: 50%;
   background-color: currentColor;
   flex-shrink: 0;
+}
+
+.stamp-pending {
+  color: var(--c-warning);
+}
+
+.stamp-synced {
+  color: var(--c-success);
 }
 
 .stamp-danger {
