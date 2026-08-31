@@ -16,7 +16,7 @@ const listsStore = useListsStore()
         listsStore.pendingCount
       }}</span>
     </RouterLink>
-    <RouterLink to="/about" class="nav-item" active-class="is-active">
+    <RouterLink to="/account" class="nav-item" active-class="is-active">
       <span class="nav-icon">⚙</span>
       <span class="nav-label">Account</span>
     </RouterLink>

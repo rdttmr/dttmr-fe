@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useListsStore } from '@/stores/lists'
 import { useAuthStore } from '@/stores/auth'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+import InvitesPanel from '@/components/InvitesPanel.vue'
 
 const listsStore = useListsStore()
 const authStore = useAuthStore()
@@ -22,7 +23,7 @@ onMounted(() => {
     <section class="card info-card">
       <h4>Users</h4>
       <p class="row">
-        <span>Signed in as</span>
+        <span>Signed in as </span>
         <strong>{{ authStore.email ?? 'Unknown' }}</strong>
       </p>
       <button
@@ -33,6 +34,8 @@ onMounted(() => {
         Change password
       </button>
     </section>
+
+    <InvitesPanel />
 
     <h1>Pending changes</h1>
 
