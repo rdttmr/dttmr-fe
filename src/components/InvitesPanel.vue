@@ -218,7 +218,7 @@ function inviteDetail(invite: Invite): string {
           :class="`is-${inviteStatus(invite)}`"
         >
           <div class="invite-ticket-main">
-            <code class="invite-code">{{ invite.code }}</code>
+            <code class="invite-code" :title="invite.code">{{ invite.code }}</code>
             <span class="invite-status-pill" :class="`pill-${inviteStatus(invite)}`">{{
               statusLabel(invite)
             }}</span>
@@ -368,13 +368,19 @@ function inviteDetail(invite: Invite): string {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .invite-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.95rem;
   letter-spacing: 0.06em;
   color: var(--c-heading);
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .invite-status-pill {
@@ -388,7 +394,7 @@ function inviteDetail(invite: Invite): string {
 }
 
 .pill-active {
-  background-color: rgba(52, 211, 153, 0.14);
+  background-color: var(--c-success-bg);
   color: var(--c-success);
 }
 
@@ -406,7 +412,8 @@ function inviteDetail(invite: Invite): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.4rem 0.5rem;
+  flex-wrap: wrap;
   border-top: 1px dashed var(--c-border);
   margin-top: 0.55rem;
   padding-top: 0.5rem;
@@ -415,12 +422,14 @@ function inviteDetail(invite: Invite): string {
 .invite-detail {
   font-size: 0.75rem;
   color: var(--c-text-soft);
+  min-width: 0;
 }
 
 .invite-actions {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  margin-left: auto;
 }
 
 .confirm-label {
@@ -450,7 +459,7 @@ function inviteDetail(invite: Invite): string {
 
 .ticket-btn-danger {
   color: var(--c-danger);
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: rgba(193, 97, 74, 0.4);
 }
 
 .ticket-btn-danger:hover:not(:disabled) {

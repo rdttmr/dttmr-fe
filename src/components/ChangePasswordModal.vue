@@ -126,9 +126,6 @@ async function handleSubmit() {
 }
 
 .banner-success {
-  background-color: rgba(52, 211, 153, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.4);
-  color: var(--c-success);
   margin-top: 0.75rem;
 }
 

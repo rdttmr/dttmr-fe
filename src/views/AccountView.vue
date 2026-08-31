@@ -43,7 +43,7 @@ onMounted(() => {
       <h4>Sync status</h4>
       <p class="row">
         <span>Pending changes</span>
-        <strong>{{ listsStore.pendingCount }}</strong>
+        <strong class="mono-num">{{ listsStore.pendingCount }}</strong>
       </p>
       <p class="row">
         <span>Syncing</span>

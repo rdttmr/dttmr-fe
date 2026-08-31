@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
@@ -11,25 +12,49 @@ async function handleLogout() {
   await authStore.logout()
   router.push('/login')
 }
+
+const stampLabel = computed(() => {
+  if (!authStore.isAuthenticated) return 'offline'
+  if (listsStore.isSyncing) return 'syncing'
+  if (listsStore.pendingCount > 0) return `${listsStore.pendingCount} pending`
+  return 'synced'
+})
+
+const stampClass = computed(() => {
+  if (!authStore.isAuthenticated) return ''
+  if (listsStore.pendingCount > 0 || listsStore.isSyncing) return 'stamp-pending'
+  return 'stamp-synced'
+})
+
+const stampTitle = computed(() => {
+  if (!authStore.isAuthenticated) return 'Not signed in'
+  if (listsStore.isSyncing) return 'Syncing…'
+  if (listsStore.pendingCount > 0) return `${listsStore.pendingCount} change(s) waiting to sync`
+  return 'Up to date'
+})
 </script>
 
 <template>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-dot"></span>
+      <span class="brand-seal"></span>
       <span class="brand-name">dttmr</span>
     </div>
 
     <div class="status">
       <span
-        class="sync-dot"
-        :class="{ offline: !authStore.isAuthenticated }"
-        :title="listsStore.isSyncing ? 'Syncing…' : 'Up to date'"
-      ></span>
-      <span v-if="listsStore.pendingCount > 0" class="pending">
-        {{ listsStore.pendingCount }} pending
-      </span>
-      <span v-if="listsStore.error" class="sync-error" :title="listsStore.error">⚠ sync error</span>
+        v-if="listsStore.error"
+        class="stamp stamp-danger"
+        :title="listsStore.error"
+        >sync error</span
+      >
+      <span
+        v-else
+        class="stamp"
+        :class="stampClass"
+        :title="stampTitle"
+        >{{ stampLabel }}</span
+      >
       <button v-if="authStore.isAuthenticated" type="button" class="logout" @click="handleLogout">
         Log out
       </button>
@@ -46,7 +71,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   padding: calc(0.75rem + var(--safe-top)) 1rem 0.75rem;
-  background: linear-gradient(180deg, rgba(10, 14, 26, 0.92) 60%, rgba(10, 14, 26, 0));
+  background: linear-gradient(180deg, rgba(20, 24, 26, 0.92) 60%, rgba(20, 24, 26, 0));
   backdrop-filter: blur(8px);
 }
 
@@ -54,17 +79,22 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
   color: var(--c-heading);
-  letter-spacing: 0.02em;
 }
 
-.brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--c-accent-strong), var(--c-accent-soft));
-  box-shadow: 0 0 12px var(--c-accent);
+.brand-name {
+  font-family: var(--font-stamp);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.brand-seal {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--c-accent);
+  transform: rotate(-8deg);
+  box-shadow: 0 0 0 2px var(--c-bg) inset;
 }
 
 .status {
@@ -75,18 +105,23 @@ async function handleLogout() {
   color: var(--c-text-soft);
 }
 
-.sync-dot {
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--c-text-soft);
+}
+
+.stamp::before {
+  content: '';
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--c-success);
+  background-color: currentColor;
+  flex-shrink: 0;
 }
 
-.sync-dot.offline {
-  background-color: var(--c-text-soft);
-}
-
-.sync-error {
+.stamp-danger {
   color: var(--c-danger);
   cursor: help;
 }
