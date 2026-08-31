@@ -10,14 +10,23 @@ const listsStore = useListsStore()
 <template>
   <nav v-if="authStore.isAuthenticated" class="bottom-nav">
     <RouterLink to="/" class="nav-item" active-class="is-active">
-      <span class="nav-icon">☰</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6h1.5M4 12h1.5M4 18h1.5" stroke-linecap="round" />
+        <path d="M9 6h11M9 12h11M9 18h11" stroke-linecap="round" />
+      </svg>
       <span class="nav-label">Lists</span>
-      <span v-if="listsStore.pendingCount > 0" class="nav-badge">{{
+      <span v-if="listsStore.pendingCount > 0" class="nav-badge mono-num">{{
         listsStore.pendingCount
       }}</span>
     </RouterLink>
     <RouterLink to="/account" class="nav-item" active-class="is-active">
-      <span class="nav-icon">⚙</span>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3.2" />
+        <path
+          d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M17.7 17.7l-1.4-1.4M7.7 7.7 6.3 6.3"
+          stroke-linecap="round"
+        />
+      </svg>
       <span class="nav-label">Account</span>
     </RouterLink>
   </nav>
@@ -45,14 +54,19 @@ const listsStore = useListsStore()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
+  gap: 0.2rem;
   color: var(--c-text-soft);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  transition: color 0.15s ease-in-out;
+}
+
+.nav-item.is-active {
+  color: var(--c-accent-strong);
 }
 
 .nav-icon {
-  font-size: 1.25rem;
-  line-height: 1;
+  width: 21px;
+  height: 21px;
 }
 
 .nav-badge {
@@ -64,8 +78,9 @@ const listsStore = useListsStore()
   padding: 0 4px;
   border-radius: 999px;
   background-color: var(--c-accent);
-  color: #fff;
+  color: var(--c-bg);
   font-size: 0.6rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;

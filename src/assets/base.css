@@ -1,33 +1,40 @@
-/* dttmr color palette - dark, modern, blueish */
+/* dttmr palette - field-ledger / stamped ink, cool slate ground, blue ink accent */
 :root {
-  --c-bg: #0a0e1a;
-  --c-bg-soft: #101627;
-  --c-bg-mute: #161d33;
-  --c-bg-elevated: #1a2338;
+  --c-bg: #12161d;
+  --c-bg-soft: #181e27;
+  --c-bg-mute: #202632;
+  --c-bg-elevated: #262e3c;
 
-  --c-border: rgba(120, 150, 220, 0.16);
-  --c-border-hover: rgba(120, 150, 220, 0.32);
+  --c-border: rgba(74, 130, 196, 0.16);
+  --c-border-hover: rgba(74, 130, 196, 0.36);
 
-  --c-text: #c7d0e6;
-  --c-text-soft: #8892b0;
-  --c-heading: #f1f4fc;
+  --c-text: #aab2c0;
+  --c-text-soft: #707a8c;
+  --c-heading: #eef1f6;
 
-  --c-accent: #4f7dfa;
-  --c-accent-soft: #3a5fd9;
-  --c-accent-strong: #6c93ff;
-  --c-accent-bg: rgba(79, 125, 250, 0.14);
+  --c-accent: #3d72b4;
+  --c-accent-soft: #2f5c92;
+  --c-accent-strong: #62a0e0;
+  --c-accent-bg: rgba(61, 114, 180, 0.16);
 
-  --c-success: #34d399;
-  --c-danger: #f87171;
-  --c-danger-bg: rgba(248, 113, 113, 0.12);
-  --c-warning: #fbbf24;
+  --c-success: #6ba178;
+  --c-success-bg: rgba(107, 161, 120, 0.14);
+  --c-danger: #c1614a;
+  --c-danger-bg: rgba(193, 97, 74, 0.14);
+  --c-warning: #cf9d3f;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+  --font-body:
+    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-stamp: 'Special Elite', var(--font-mono);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.5);
 
   --nav-height: 60px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -56,21 +63,18 @@ html {
 body {
   min-height: 100vh;
   color: var(--c-text);
-  background: radial-gradient(circle at top, #101a33 0%, var(--c-bg) 55%);
+  background-color: var(--c-bg);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(74, 130, 196, 0.06) 0,
+      rgba(74, 130, 196, 0.06) 1px,
+      transparent 1px,
+      transparent 28px
+    ),
+    radial-gradient(circle at 50% -10%, rgba(74, 130, 196, 0.08), transparent 55%);
   line-height: 1.55;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -83,6 +87,12 @@ h3,
 h4 {
   color: var(--c-heading);
   font-weight: 600;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 a {

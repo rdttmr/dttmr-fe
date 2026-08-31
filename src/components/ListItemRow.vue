@@ -134,22 +134,23 @@ function handleDelete(event: Event) {
 
 .checkbox {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid var(--c-border-hover);
+  width: 21px;
+  height: 21px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--c-border-hover);
   background: transparent;
-  color: #fff;
+  color: var(--c-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .item-row.completed .checkbox {
-  background: linear-gradient(135deg, var(--c-accent-strong), var(--c-accent-soft));
-  border-color: transparent;
+  background: var(--c-accent);
+  border-color: var(--c-accent);
 }
 
 .title {

@@ -58,7 +58,8 @@ async function handleSubmit() {
   <div class="register-container">
     <div class="register-card card">
       <div class="brand-mark">
-        <span class="brand-dot"></span>
+        <span class="brand-seal"></span>
+        <span class="brand-word">dttmr</span>
       </div>
       <h2>Create your account</h2>
 
@@ -160,16 +161,26 @@ async function handleSubmit() {
 
 .brand-mark {
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 1rem;
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
 }
 
-.brand-dot {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--c-accent-strong), var(--c-accent-soft));
-  box-shadow: 0 0 24px var(--c-accent-bg);
+.brand-seal {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--c-accent);
+  transform: rotate(-8deg);
+  box-shadow: 0 0 0 3px var(--c-bg-soft) inset;
+}
+
+.brand-word {
+  font-family: var(--font-stamp);
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+  color: var(--c-heading);
 }
 
 h2 {

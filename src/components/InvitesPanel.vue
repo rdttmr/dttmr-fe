@@ -371,7 +371,7 @@ function inviteDetail(invite: Invite): string {
 }
 
 .invite-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.95rem;
   letter-spacing: 0.06em;
   color: var(--c-heading);
@@ -388,7 +388,7 @@ function inviteDetail(invite: Invite): string {
 }
 
 .pill-active {
-  background-color: rgba(52, 211, 153, 0.14);
+  background-color: var(--c-success-bg);
   color: var(--c-success);
 }
 
@@ -450,7 +450,7 @@ function inviteDetail(invite: Invite): string {
 
 .ticket-btn-danger {
   color: var(--c-danger);
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: rgba(193, 97, 74, 0.4);
 }
 
 .ticket-btn-danger:hover:not(:disabled) {

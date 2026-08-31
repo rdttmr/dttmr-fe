@@ -54,7 +54,7 @@ function handleDelete(event: Event) {
       <div class="list-card-main">
         <h3>{{ list.name }}</h3>
         <p class="meta">
-          {{ completedCount }}/{{ totalCount }} done
+          <span class="mono-num">{{ completedCount }}/{{ totalCount }}</span> done
           <span v-if="list.pendingSync" class="pending-tag">syncing…</span>
         </p>
       </div>
