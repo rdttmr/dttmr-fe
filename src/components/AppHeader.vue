@@ -106,15 +106,19 @@ const stampTitle = computed(() => {
 }
 
 .stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   color: var(--c-text-soft);
 }
 
-.stamp-synced {
-  color: var(--c-success);
-}
-
-.stamp-pending {
-  color: var(--c-accent-strong);
+.stamp::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  flex-shrink: 0;
 }
 
 .stamp-danger {

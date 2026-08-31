@@ -129,26 +129,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Rubber-stamp badge: the app's signature mark, used for sync status. */
-.stamp {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.15rem 0.55rem;
-  border: 1.5px solid currentColor;
-  border-radius: 999px;
-  box-shadow: 0 0 0 2px var(--c-bg) inset;
-  outline: 1px solid currentColor;
-  outline-offset: 2px;
-  transform: rotate(-3deg);
-  font-family: var(--font-stamp);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
 .page {
   min-height: 100vh;
   padding: 1rem 1rem calc(var(--nav-height) + var(--safe-bottom) + 1.5rem);

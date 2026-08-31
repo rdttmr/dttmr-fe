@@ -27,7 +27,7 @@
     'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-stamp: 'Special Elite', var(--font-mono);
+  --font-stamp: 'Special Elite', var(--font-mono), monospace;
 
   --radius-sm: 3px;
   --radius-md: 5px;
