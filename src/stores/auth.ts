@@ -1,7 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { loginApi, refreshApi, logoutApi, logoutAllApi } from '@/api/auth'
-import type { LoginPayload, TokenPair } from '@/types/auth'
+import type { AccessTokenClaims, LoginPayload, TokenPair } from '@/types/auth'
+import { decodeJwtPayload } from '@/utils/jwt'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem('access_token'))
@@ -10,6 +11,12 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => !!accessToken.value)
+
+  const currentUser = computed(() =>
+    accessToken.value ? decodeJwtPayload<AccessTokenClaims>(accessToken.value) : null,
+  )
+  const email = computed(() => currentUser.value?.email ?? null)
+  const username = computed(() => currentUser.value?.name ?? null)
 
   function setTokens(tokens: TokenPair) {
     accessToken.value = tokens.access_token
@@ -89,6 +96,9 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading,
     error,
     isAuthenticated,
+    currentUser,
+    email,
+    username,
     setTokens,
     clearTokens,
     login,

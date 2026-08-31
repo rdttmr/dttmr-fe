@@ -17,8 +17,8 @@ const listsStore = useListsStore()
       }}</span>
     </RouterLink>
     <RouterLink to="/about" class="nav-item" active-class="is-active">
-      <span class="nav-icon">ⓘ</span>
-      <span class="nav-label">About</span>
+      <span class="nav-icon">⚙</span>
+      <span class="nav-label">Account</span>
     </RouterLink>
   </nav>
 </template>
@@ -53,10 +53,6 @@ const listsStore = useListsStore()
 .nav-icon {
   font-size: 1.25rem;
   line-height: 1;
-}
-
-.nav-item.is-active {
-  color: var(--c-accent-strong);
 }
 
 .nav-badge {
