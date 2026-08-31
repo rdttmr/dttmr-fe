@@ -22,7 +22,7 @@ onMounted(() => {
     <section class="card info-card">
       <h4>Users</h4>
       <p class="row">
-        <span>Signed in as</span>
+        <span>Signed in as </span>
         <strong>{{ authStore.email ?? 'Unknown' }}</strong>
       </p>
       <button
