@@ -140,6 +140,11 @@ describe('useListsStore', () => {
 
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
 
+    // sync() is a no-op for anonymous visitors (see lists.ts); these tests
+    // exercise the authenticated sync path, so seed a logged-in session.
+    localStorage.setItem('access_token', 'test-access-token')
+    localStorage.setItem('refresh_token', 'test-refresh-token')
+
     // Default the read endpoints to an empty result so that the pullFromServer()
     // step chained onto every sync() call doesn't interfere with unrelated tests.
     listsApiMocks.getListsApi.mockResolvedValue([])
@@ -242,6 +247,16 @@ describe('useListsStore', () => {
 
     expect(listsApiMocks.createListApi).not.toHaveBeenCalled()
     expect(store.pendingCount).toBe(1)
+  })
+
+  it('does not attempt to sync when logged out, e.g. an anonymous visitor on a public invite link', async () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+
+    const store = useListsStore()
+    await store.sync()
+
+    expect(listsApiMocks.getListsApi).not.toHaveBeenCalled()
   })
 
   it('sets a list item completed locally and pushes it via the dedicated endpoint', async () => {
