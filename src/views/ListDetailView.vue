@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
 import type { LocalListItem } from '@/database/db'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
@@ -12,7 +13,8 @@ const props = defineProps<{ id: string }>()
 const router = useRouter()
 const listsStore = useListsStore()
 
-const newItemTitle = ref('')
+// Doubles as the "add item" text box and the live filter query on the list below.
+const itemInput = ref('')
 const isAddingItem = ref(false)
 const itemError = ref('')
 const showDeleteModal = ref(false)
@@ -44,11 +46,21 @@ function byModifiedDesc(a: LocalListItem, b: LocalListItem) {
   return (b.modified_at ?? '').localeCompare(a.modified_at ?? '')
 }
 
+// Filtering is local and fuzzy only, for display purposes — it never touches
+// the server or the sync queue.
+const filterQuery = computed(() => itemInput.value.trim())
+
+const filteredItems = computed(() => {
+  const query = filterQuery.value
+  if (!query) return items.value
+  return items.value.filter((item) => fuzzyMatch(query, item.title))
+})
+
 const pendingItems = computed(() =>
-  items.value.filter((item) => !item.is_completed).sort(byModifiedDesc),
+  filteredItems.value.filter((item) => !item.is_completed).sort(byModifiedDesc),
 )
 const completedItems = computed(() =>
-  items.value.filter((item) => item.is_completed).sort(byModifiedDesc),
+  filteredItems.value.filter((item) => item.is_completed).sort(byModifiedDesc),
 )
 
 function handleOpenDelete() {
@@ -72,14 +84,14 @@ async function handleConfirmDelete() {
 }
 
 async function handleAddItem() {
-  const title = newItemTitle.value.trim()
+  const title = filterQuery.value
   if (!title) return
 
   itemError.value = ''
   isAddingItem.value = true
   try {
     await listsStore.createListItem(props.id, title)
-    newItemTitle.value = ''
+    itemInput.value = ''
   } catch (err) {
     itemError.value = err instanceof Error ? err.message : 'Failed to add item'
   } finally {
@@ -146,7 +158,7 @@ async function handleAddItem() {
       <form class="new-item-form" @submit.prevent="handleAddItem">
         <div class="field">
           <input
-            v-model="newItemTitle"
+            v-model="itemInput"
             type="text"
             placeholder="Add an item…"
             :disabled="isAddingItem"
@@ -155,7 +167,7 @@ async function handleAddItem() {
         <button
           type="submit"
           class="btn btn-primary add-btn"
-          :disabled="isAddingItem || !newItemTitle.trim()"
+          :disabled="isAddingItem || !filterQuery"
         >
           +
         </button>
@@ -177,6 +189,7 @@ async function handleAddItem() {
       </section>
 
       <p v-if="items.length === 0" class="empty-hint">No items yet — add your first one above.</p>
+      <p v-else-if="filteredItems.length === 0" class="empty-hint">No items match "{{ filterQuery }}".</p>
 
       <DeleteListModal
         v-if="showDeleteModal && list"
