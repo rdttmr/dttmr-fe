@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 import {
   db,
   type LocalList,
@@ -438,6 +439,7 @@ export const useListsStore = defineStore('lists', () => {
       return ongoingSync
     }
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    if (!useAuthStore().isAuthenticated) return
 
     ongoingSync = enqueueOperation(() => runSync().then(() => pullFromServer()))
     try {
