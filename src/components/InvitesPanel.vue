@@ -384,6 +384,12 @@ function inviteDetail(invite: Invite): string {
   text-overflow: ellipsis;
 }
 
+@media (min-width: 768px) {
+  .invite-code {
+    max-width: 80ch;
+  }
+}
+
 .invite-status-pill {
   flex-shrink: 0;
   font-size: 0.65rem;

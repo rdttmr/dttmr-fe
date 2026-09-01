@@ -37,7 +37,7 @@ onMounted(() => {
 
     <InvitesPanel />
 
-    <h1>Pending changes</h1>
+    <h1 class="section-heading">Pending changes</h1>
 
     <section class="card info-card">
       <h4>Sync status</h4>
@@ -56,9 +56,19 @@ onMounted(() => {
 </template>
 
 <style scoped>
+@media (min-width: 768px) {
+  .page.about {
+    max-width: 780px;
+  }
+}
+
 .about h1 {
   font-size: 1.35rem;
   margin-bottom: 0.75rem;
+}
+
+.section-heading {
+  margin-top: 1.5rem;
 }
 
 .about p {
