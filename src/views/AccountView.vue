@@ -16,7 +16,7 @@ const versionError = ref('')
 const isLoadingVersion = ref(false)
 
 onMounted(() => {
-  listsStore.loadLists()
+  listsStore.ensureLoaded()
   loadVersion()
 })
 

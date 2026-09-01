@@ -564,6 +564,7 @@ export const useListsStore = defineStore('lists', () => {
     pendingCount,
     error,
     itemsForList,
+    ensureLoaded,
     loadLists,
     loadListItems,
     refresh,
