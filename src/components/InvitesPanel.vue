@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
-import { getInvitesApi, createInviteApi, deleteInviteApi } from '@/api/invites'
-import type { Invite } from '@/types/invite'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { getInvitesApi, getInviteStatusApi, createInviteApi, deleteInviteApi } from '@/api/invites'
+import type { Invite, InviteStatusCounts } from '@/types/invite'
 
 type InviteStatus = 'active' | 'used' | 'expired'
 
@@ -17,15 +17,23 @@ const error = ref('')
 const pendingDeleteId = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
 const sharedId = ref<string | null>(null)
+// Counts across ALL invites (not just the current page)
+const statusCounts = ref<InviteStatusCounts | null>(null)
 
 let hasLoaded = false
 let sharedTimeout: ReturnType<typeof setTimeout> | undefined
 
-const activeCount = computed(
-  () => invites.value.filter((invite) => inviteStatus(invite) === 'active').length,
+const totalInvites = computed(() =>
+  statusCounts.value
+    ? statusCounts.value.active + statusCounts.value.expired + statusCounts.value.used
+    : null,
 )
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
 const showPagination = computed(() => totalPages.value > 1)
+
+onMounted(() => {
+  void loadStatusCounts()
+})
 
 onBeforeUnmount(() => {
   clearTimeout(sharedTimeout)
@@ -62,6 +70,16 @@ async function loadInvites() {
   }
 }
 
+async function loadStatusCounts() {
+  if (isOffline()) return
+  try {
+    statusCounts.value = await getInviteStatusApi()
+  } catch {
+    // Non-critical: the header badges just stay hidden until the next
+    // successful fetch instead of blocking the rest of the panel.
+  }
+}
+
 async function goToPage(target: number) {
   if (target < 1 || target > totalPages.value || target === page.value || isLoading.value) {
     return
@@ -82,6 +100,7 @@ async function handleCreate() {
     const invite = await createInviteApi()
     page.value = 1
     await loadInvites()
+    await loadStatusCounts()
     // Sharing is the whole point of an invite, so offer it immediately
     // instead of making the user hunt for the Share button afterwards.
     await shareInvite(invite)
@@ -118,6 +137,7 @@ async function confirmDelete(id: string) {
       page.value -= 1
     }
     await loadInvites()
+    await loadStatusCounts()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to delete invite'
   } finally {
@@ -222,7 +242,12 @@ function inviteDetail(invite: Invite): string {
     >
       <span class="invites-toggle-label">
         <h4>Invites</h4>
-        <span v-if="activeCount > 0" class="invites-count-badge">{{ activeCount }} active</span>
+        <span v-if="statusCounts" class="invites-stats">
+          <span class="invites-count-badge">{{ statusCounts.active }} active</span>
+          <span class="invites-count-badge badge-expired">{{ statusCounts.expired }} expired</span>
+          <span class="invites-count-badge badge-used">{{ statusCounts.used }} used</span>
+          <span class="invites-total-label">{{ totalInvites }} total</span>
+        </span>
       </span>
       <span class="chevron" :class="{ 'is-open': expanded }" aria-hidden="true">⌄</span>
     </button>
@@ -345,11 +370,19 @@ function inviteDetail(invite: Invite): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .invites-toggle-label h4 {
   font-size: 0.85rem;
   margin: 0;
+}
+
+.invites-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .invites-count-badge {
@@ -359,6 +392,21 @@ function inviteDetail(invite: Invite): string {
   border-radius: 999px;
   background-color: var(--c-accent-bg);
   color: var(--c-accent-strong);
+}
+
+.invites-count-badge.badge-expired {
+  background-color: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.invites-count-badge.badge-used {
+  background-color: var(--c-bg-elevated);
+  color: var(--c-text-soft);
+}
+
+.invites-total-label {
+  font-size: 0.65rem;
+  color: var(--c-text-soft);
 }
 
 .chevron {
