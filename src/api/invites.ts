@@ -1,9 +1,19 @@
 import { apiClient } from '@/api/client'
 import { extractErrorMessage } from '@/api/http'
-import type { Invite } from '@/types/invite'
+import type { Invite, PaginatedInvites } from '@/types/invite'
 
-export async function getInvitesApi(): Promise<Invite[]> {
-  const response = await apiClient.get('/user/invites')
+export interface GetInvitesParams {
+  page?: number
+  count?: number
+}
+
+export async function getInvitesApi(params: GetInvitesParams = {}): Promise<PaginatedInvites> {
+  const query = new URLSearchParams()
+  if (params.page !== undefined) query.set('page', String(params.page))
+  if (params.count !== undefined) query.set('count', String(params.count))
+  const queryString = query.toString()
+
+  const response = await apiClient.get(`/user/invites${queryString ? `?${queryString}` : ''}`)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to load invites'))
   }

@@ -5,8 +5,12 @@ import type { Invite } from '@/types/invite'
 
 type InviteStatus = 'active' | 'used' | 'expired'
 
+const PAGE_SIZE = 10
+
 const expanded = ref(false)
 const invites = ref<Invite[]>([])
+const page = ref(1)
+const total = ref(0)
 const isLoading = ref(false)
 const isCreating = ref(false)
 const error = ref('')
@@ -20,6 +24,8 @@ let sharedTimeout: ReturnType<typeof setTimeout> | undefined
 const activeCount = computed(
   () => invites.value.filter((invite) => inviteStatus(invite) === 'active').length,
 )
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)))
+const showPagination = computed(() => totalPages.value > 1)
 
 onBeforeUnmount(() => {
   clearTimeout(sharedTimeout)
@@ -45,13 +51,23 @@ async function loadInvites() {
 
   isLoading.value = true
   try {
-    invites.value = await getInvitesApi()
+    const response = await getInvitesApi({ page: page.value, count: PAGE_SIZE })
+    invites.value = response.data
+    total.value = response.total
     hasLoaded = true
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load invites'
   } finally {
     isLoading.value = false
   }
+}
+
+async function goToPage(target: number) {
+  if (target < 1 || target > totalPages.value || target === page.value || isLoading.value) {
+    return
+  }
+  page.value = target
+  await loadInvites()
 }
 
 async function handleCreate() {
@@ -64,8 +80,8 @@ async function handleCreate() {
   isCreating.value = true
   try {
     const invite = await createInviteApi()
-    invites.value = [invite, ...invites.value]
-    hasLoaded = true
+    page.value = 1
+    await loadInvites()
     // Sharing is the whole point of an invite, so offer it immediately
     // instead of making the user hunt for the Share button afterwards.
     await shareInvite(invite)
@@ -96,7 +112,12 @@ async function confirmDelete(id: string) {
   deletingId.value = id
   try {
     await deleteInviteApi(id)
-    invites.value = invites.value.filter((invite) => invite.id !== id)
+    // Deleted the only item on a page past the first: step back a page
+    // instead of reloading into a stranded, empty page.
+    if (invites.value.length === 1 && page.value > 1) {
+      page.value -= 1
+    }
+    await loadInvites()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to delete invite'
   } finally {
@@ -258,6 +279,28 @@ function inviteDetail(invite: Invite): string {
 
       <p v-else class="invites-empty">No invites yet. Generate one to invite someone.</p>
 
+      <div v-if="showPagination" class="invites-pagination">
+        <button
+          type="button"
+          class="page-btn"
+          :disabled="page <= 1 || isLoading"
+          aria-label="Previous page"
+          @click="goToPage(page - 1)"
+        >
+          ‹
+        </button>
+        <span class="pagination-info">{{ total }} invites total</span>
+        <button
+          type="button"
+          class="page-btn"
+          :disabled="page >= totalPages || isLoading"
+          aria-label="Next page"
+          @click="goToPage(page + 1)"
+        >
+          ›
+        </button>
+      </div>
+
       <p v-if="error" class="banner banner-error">{{ error }}</p>
 
       <button
@@ -384,6 +427,12 @@ function inviteDetail(invite: Invite): string {
   text-overflow: ellipsis;
 }
 
+@media (min-width: 768px) {
+  .invite-code {
+    max-width: 80ch;
+  }
+}
+
 .invite-status-pill {
   flex-shrink: 0;
   font-size: 0.65rem;
@@ -471,5 +520,43 @@ function inviteDetail(invite: Invite): string {
   width: auto;
   align-self: flex-start;
   padding: 0.55rem 1.1rem;
+}
+
+.invites-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.pagination-info {
+  font-size: 0.72rem;
+  color: var(--c-text-soft);
+}
+
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--c-border-hover);
+  color: var(--c-heading);
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

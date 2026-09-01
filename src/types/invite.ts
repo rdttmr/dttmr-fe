@@ -4,3 +4,9 @@ export interface Invite {
   expires_at?: string
   consumed_at?: string
 }
+
+export interface PaginatedInvites {
+  data: Invite[]
+  total: number
+  count: number
+}

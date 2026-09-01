@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import InvitesPanel from '../InvitesPanel.vue'
 import * as invitesApi from '@/api/invites'
-import type { Invite } from '@/types/invite'
+import type { Invite, PaginatedInvites } from '@/types/invite'
+
+function paginated(data: Invite[], total = data.length): PaginatedInvites {
+  return { data, total, count: data.length }
+}
 
 describe('InvitesPanel', () => {
   beforeEach(() => {
@@ -36,12 +40,15 @@ describe('InvitesPanel', () => {
         consumed_at: '2026-01-01T00:00:00.000Z',
       },
     ]
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(mockInvites)
+    const getSpy = vi
+      .spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated(mockInvites))
 
     const wrapper = mount(InvitesPanel)
     await wrapper.find('.invites-toggle').trigger('click')
     await flushPromises()
 
+    expect(getSpy).toHaveBeenCalledWith({ page: 1, count: 10 })
     expect(wrapper.text()).toContain('ABC123')
     expect(wrapper.text()).toContain('USEDCODE')
     expect(wrapper.text()).toContain('Active')
@@ -60,7 +67,7 @@ describe('InvitesPanel', () => {
   })
 
   it('shows empty state when there are no invites', async () => {
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([])
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(paginated([]))
 
     const wrapper = mount(InvitesPanel)
     await wrapper.find('.invites-toggle').trigger('click')
@@ -69,9 +76,60 @@ describe('InvitesPanel', () => {
     expect(wrapper.text()).toContain('No invites yet')
   })
 
-  it('generates a new invite and prepends it to the list', async () => {
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([])
+  it('does not show pagination controls when everything fits on one page', async () => {
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(
+      paginated([{ id: 'invite-1', code: 'ABC123' }], 1),
+    )
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.invites-pagination').exists()).toBe(false)
+  })
+
+  it('shows pagination controls and total count when there is more than one page', async () => {
+    const page1 = Array.from({ length: 10 }, (_, i) => ({ id: `invite-${i}`, code: `CODE${i}` }))
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(paginated(page1, 15))
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.invites-pagination').text()).toContain('15 invites total')
+    const [prevBtn, nextBtn] = wrapper.findAll('.page-btn')
+    expect((prevBtn!.element as HTMLButtonElement).disabled).toBe(true)
+    expect((nextBtn!.element as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('navigates to the next page when the forward button is clicked', async () => {
+    const page1 = Array.from({ length: 10 }, (_, i) => ({ id: `invite-${i}`, code: `CODE${i}` }))
+    const page2 = [{ id: 'invite-10', code: 'CODE10' }]
+    const getSpy = vi
+      .spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated(page1, 11))
+      .mockResolvedValueOnce(paginated(page2, 11))
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    const [, nextBtn] = wrapper.findAll('.page-btn')
+    await nextBtn?.trigger('click')
+    await flushPromises()
+
+    expect(getSpy).toHaveBeenLastCalledWith({ page: 2, count: 10 })
+    expect(wrapper.text()).toContain('CODE10')
+    const [prevBtn, nextBtnAfter] = wrapper.findAll('.page-btn')
+    expect((prevBtn!.element as HTMLButtonElement).disabled).toBe(false)
+    expect((nextBtnAfter!.element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('generates a new invite, reloads page one, and prepends it to the list', async () => {
     const newInvite: Invite = { id: 'invite-new', code: 'NEWCODE1' }
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated([]))
+      .mockResolvedValueOnce(paginated([newInvite]))
     vi.spyOn(invitesApi, 'createInviteApi').mockResolvedValueOnce(newInvite)
 
     const wrapper = mount(InvitesPanel)
@@ -85,8 +143,10 @@ describe('InvitesPanel', () => {
   })
 
   it('shares the newly created invite automatically', async () => {
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([])
     const newInvite: Invite = { id: 'invite-new', code: 'NEWCODE1' }
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated([]))
+      .mockResolvedValueOnce(paginated([newInvite]))
     vi.spyOn(invitesApi, 'createInviteApi').mockResolvedValueOnce(newInvite)
 
     const wrapper = mount(InvitesPanel)
@@ -103,7 +163,7 @@ describe('InvitesPanel', () => {
 
   it('shares an existing invite link via the clipboard when Web Share is unavailable', async () => {
     const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([mockInvite])
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(paginated([mockInvite]))
 
     const wrapper = mount(InvitesPanel)
     await wrapper.find('.invites-toggle').trigger('click')
@@ -123,7 +183,7 @@ describe('InvitesPanel', () => {
     Object.defineProperty(navigator, 'share', { value: shareMock, configurable: true })
 
     const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([mockInvite])
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(paginated([mockInvite]))
 
     const wrapper = mount(InvitesPanel)
     await wrapper.find('.invites-toggle').trigger('click')
@@ -140,7 +200,9 @@ describe('InvitesPanel', () => {
 
   it('deletes an invite after confirming', async () => {
     const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([mockInvite])
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated([mockInvite]))
+      .mockResolvedValueOnce(paginated([]))
     const deleteSpy = vi.spyOn(invitesApi, 'deleteInviteApi').mockResolvedValueOnce()
 
     const wrapper = mount(InvitesPanel)
@@ -158,13 +220,39 @@ describe('InvitesPanel', () => {
     expect(wrapper.text()).toContain('No invites yet')
   })
 
+  it('steps back a page when deleting the last item on a page past the first', async () => {
+    const page1 = Array.from({ length: 10 }, (_, i) => ({ id: `invite-${i}`, code: `CODE${i}` }))
+    const page2 = [{ id: 'invite-10', code: 'CODE10' }]
+    const getSpy = vi
+      .spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated(page1, 11))
+      .mockResolvedValueOnce(paginated(page2, 11))
+      .mockResolvedValueOnce(paginated(page1, 10))
+    vi.spyOn(invitesApi, 'deleteInviteApi').mockResolvedValueOnce()
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    const [, nextBtn] = wrapper.findAll('.page-btn')
+    await nextBtn?.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.ticket-btn-danger').trigger('click')
+    const confirmButtons = wrapper.findAll('.ticket-btn-danger')
+    await confirmButtons[confirmButtons.length - 1]?.trigger('click')
+    await flushPromises()
+
+    expect(getSpy).toHaveBeenLastCalledWith({ page: 1, count: 10 })
+  })
+
   it('disables delete for already-used invites', async () => {
     const usedInvite: Invite = {
       id: 'invite-1',
       code: 'USEDCODE',
       consumed_at: '2026-01-01T00:00:00.000Z',
     }
-    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce([usedInvite])
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(paginated([usedInvite]))
 
     const wrapper = mount(InvitesPanel)
     await wrapper.find('.invites-toggle').trigger('click')
