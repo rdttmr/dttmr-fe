@@ -21,12 +21,12 @@ describe('invites API', () => {
     localStorage.clear()
   })
 
-  it('getInvitesApi sends GET to /user/invites and returns the invites', async () => {
-    const mockInvites = [{ id: 'invite-1', code: 'ABC123' }]
+  it('getInvitesApi sends GET to /user/invites and returns the paginated result', async () => {
+    const mockResponse = { data: [{ id: 'invite-1', code: 'ABC123' }], total: 1, count: 1 }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => mockInvites,
+      json: async () => mockResponse,
     } as unknown as Response)
     global.fetch = fetchMock
 
@@ -36,7 +36,24 @@ describe('invites API', () => {
       `${API_BASE_URL}/user/invites`,
       expect.objectContaining({ method: 'GET' }),
     )
-    expect(result).toEqual(mockInvites)
+    expect(result).toEqual(mockResponse)
+  })
+
+  it('getInvitesApi sends page and count as query params when given', async () => {
+    const mockResponse = { data: [], total: 0, count: 10 }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockResponse,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await getInvitesApi({ page: 2, count: 10 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/user/invites?page=2&count=10`,
+      expect.objectContaining({ method: 'GET' }),
+    )
   })
 
   it('getInvitesApi throws on failure', async () => {
