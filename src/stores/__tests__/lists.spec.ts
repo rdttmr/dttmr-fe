@@ -162,14 +162,13 @@ describe('useListsStore', () => {
     listsApiMocks.getListsApi.mockResolvedValueOnce([{ id: 'server-id-1', name: 'Groceries' }])
 
     const store = useListsStore()
-    const localList = await store.createList('Groceries', [])
+    const localList = await store.createList('Groceries')
 
     // wait for the fire-and-forget sync triggered by createList to settle
     await store.sync()
 
     expect(listsApiMocks.createListApi).toHaveBeenCalledWith({
       name: 'Groceries',
-      user_ids: [],
     })
     expect(store.lists.find((list) => list.id === localList.id)).toBeUndefined()
     const synced = store.lists.find((list) => list.id === 'server-id-1')

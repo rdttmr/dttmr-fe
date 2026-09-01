@@ -101,7 +101,7 @@ describe('lists API', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    const result = await createListApi({ name: 'Groceries', user_ids: [] })
+    const result = await createListApi({ name: 'Groceries' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/lists`,
@@ -119,7 +119,7 @@ describe('lists API', () => {
     await expect(createListApi({ name: 'x' })).rejects.toThrow('Failed')
   })
 
-  it('createListItemApi sends POST to /lists/item and returns the created item with its server id', async () => {
+  it('createListItemApi sends POST to /lists/items and returns the created item with its server id', async () => {
     const mockItem = { id: 'item-1', list_id: '', title: 'Milk', is_completed: false }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
@@ -131,13 +131,13 @@ describe('lists API', () => {
     const result = await createListItemApi({ list_id: 'list-1', title: 'Milk' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/item`,
+      `${API_BASE_URL}/lists/items`,
       expect.objectContaining({ method: 'POST' }),
     )
     expect(result).toEqual(mockItem)
   })
 
-  it('updateListItemApi sends PUT to /lists/item', async () => {
+  it('updateListItemApi sends PUT to /lists/items', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -147,7 +147,7 @@ describe('lists API', () => {
     await updateListItemApi({ list_item_id: 'item-1', is_completed: true })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/item`,
+      `${API_BASE_URL}/lists/items`,
       expect.objectContaining({ method: 'PUT' }),
     )
   })
@@ -206,7 +206,7 @@ describe('lists API', () => {
     await expect(deleteListApi('list-1')).rejects.toThrow('List not found')
   })
 
-  it('deleteListItemApi sends DELETE to /lists/item/{id}', async () => {
+  it('deleteListItemApi sends DELETE to /lists/items/{id}', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -216,7 +216,7 @@ describe('lists API', () => {
     await deleteListItemApi('item-1')
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/item/item-1`,
+      `${API_BASE_URL}/lists/items/item-1`,
       expect.objectContaining({ method: 'DELETE' }),
     )
   })

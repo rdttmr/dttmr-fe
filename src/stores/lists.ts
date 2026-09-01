@@ -134,7 +134,7 @@ export const useListsStore = defineStore('lists', () => {
     }, SYNC_DEBOUNCE_MS)
   }
 
-  async function createList(name: string, userIds: string[] = []): Promise<LocalList> {
+  async function createList(name: string): Promise<LocalList> {
     const now = new Date().toISOString()
     const localList: LocalList = {
       id: generateId(),
@@ -148,7 +148,7 @@ export const useListsStore = defineStore('lists', () => {
     upsertList(localList)
     await enqueue({
       type: 'createList',
-      payload: { name, user_ids: userIds },
+      payload: { name },
       localListId: localList.id,
     })
     scheduleSync()

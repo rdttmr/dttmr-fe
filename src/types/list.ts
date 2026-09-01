@@ -18,7 +18,6 @@ export interface ListItem {
 
 export interface CreateListPayload {
   name: string
-  user_ids?: string[]
 }
 
 export interface CreateListItemPayload {
