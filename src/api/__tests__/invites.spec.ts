@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { getInvitesApi, createInviteApi, deleteInviteApi } from '../invites'
+import { getInvitesApi, getInviteStatusApi, createInviteApi, deleteInviteApi } from '../invites'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/http'
 
@@ -63,6 +63,33 @@ describe('invites API', () => {
     } as unknown as Response)
 
     await expect(getInvitesApi()).rejects.toThrow('Failed')
+  })
+
+  it('getInviteStatusApi sends GET to /user/invites/status and returns the counts', async () => {
+    const mockCounts = { active: 12, expired: 2, used: 8 }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockCounts,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    const result = await getInviteStatusApi()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/user/invites/status`,
+      expect.objectContaining({ method: 'GET' }),
+    )
+    expect(result).toEqual(mockCounts)
+  })
+
+  it('getInviteStatusApi throws on failure', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Failed to load invite counts' }),
+    } as unknown as Response)
+
+    await expect(getInviteStatusApi()).rejects.toThrow('Failed to load invite counts')
   })
 
   it('createInviteApi sends POST to /user/invites and returns the created invite', async () => {

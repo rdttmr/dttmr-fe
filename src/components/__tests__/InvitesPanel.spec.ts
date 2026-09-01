@@ -18,6 +18,13 @@ describe('InvitesPanel', () => {
     })
     // jsdom has no Web Share API; tests that want it define it explicitly.
     Reflect.deleteProperty(navigator, 'share')
+    // Every mount fetches status counts once on mount; give it a harmless
+    // default so tests that don't care about counts don't hit real fetch.
+    vi.spyOn(invitesApi, 'getInviteStatusApi').mockResolvedValue({
+      active: 0,
+      expired: 0,
+      used: 0,
+    })
   })
 
   it('renders collapsed by default without loading invites', () => {
@@ -28,6 +35,115 @@ describe('InvitesPanel', () => {
     expect(wrapper.text()).toContain('Invites')
     expect(wrapper.find('#invites-panel').exists()).toBe(false)
     expect(getSpy).not.toHaveBeenCalled()
+  })
+
+  it('fetches invite status counts on mount and shows them in the header while collapsed', async () => {
+    const statusSpy = vi.spyOn(invitesApi, 'getInviteStatusApi').mockResolvedValueOnce({
+      active: 12,
+      expired: 2,
+      used: 8,
+    })
+
+    const wrapper = mount(InvitesPanel)
+    await flushPromises()
+
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('#invites-panel').exists()).toBe(false)
+    expect(wrapper.text()).toContain('12 active')
+    expect(wrapper.text()).toContain('2 expired')
+    expect(wrapper.text()).toContain('8 used')
+    expect(wrapper.text()).toContain('22 total')
+  })
+
+  it('does not fetch status counts on mount when offline', () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    const statusSpy = vi.spyOn(invitesApi, 'getInviteStatusApi')
+
+    mount(InvitesPanel)
+
+    expect(statusSpy).not.toHaveBeenCalled()
+  })
+
+  it('hides status badges without an error banner when the status endpoint fails', async () => {
+    vi.spyOn(invitesApi, 'getInviteStatusApi').mockRejectedValueOnce(new Error('boom'))
+
+    const wrapper = mount(InvitesPanel)
+    await flushPromises()
+
+    expect(wrapper.find('.invites-stats').exists()).toBe(false)
+    expect(wrapper.find('.banner-error').exists()).toBe(false)
+  })
+
+  it('does not refetch status counts when paginating', async () => {
+    const statusSpy = vi.spyOn(invitesApi, 'getInviteStatusApi').mockResolvedValue({
+      active: 11,
+      expired: 0,
+      used: 0,
+    })
+    const page1 = Array.from({ length: 10 }, (_, i) => ({ id: `invite-${i}`, code: `CODE${i}` }))
+    const page2 = [{ id: 'invite-10', code: 'CODE10' }]
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated(page1, 11))
+      .mockResolvedValueOnce(paginated(page2, 11))
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+
+    const [, nextBtn] = wrapper.findAll('.page-btn')
+    await nextBtn?.trigger('click')
+    await flushPromises()
+
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches status counts after creating an invite', async () => {
+    const statusSpy = vi.spyOn(invitesApi, 'getInviteStatusApi').mockResolvedValue({
+      active: 1,
+      expired: 0,
+      used: 0,
+    })
+    const newInvite: Invite = { id: 'invite-new', code: 'NEWCODE1' }
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated([]))
+      .mockResolvedValueOnce(paginated([newInvite]))
+    vi.spyOn(invitesApi, 'createInviteApi').mockResolvedValueOnce(newInvite)
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+
+    await wrapper.find('.generate-btn').trigger('click')
+    await flushPromises()
+
+    expect(statusSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('refetches status counts after deleting an invite', async () => {
+    const statusSpy = vi.spyOn(invitesApi, 'getInviteStatusApi').mockResolvedValue({
+      active: 0,
+      expired: 0,
+      used: 0,
+    })
+    const mockInvite: Invite = { id: 'invite-1', code: 'ABC123' }
+    vi.spyOn(invitesApi, 'getInvitesApi')
+      .mockResolvedValueOnce(paginated([mockInvite]))
+      .mockResolvedValueOnce(paginated([]))
+    vi.spyOn(invitesApi, 'deleteInviteApi').mockResolvedValueOnce()
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+
+    await wrapper.find('.ticket-btn-danger').trigger('click')
+    const confirmButtons = wrapper.findAll('.ticket-btn-danger')
+    await confirmButtons[confirmButtons.length - 1]?.trigger('click')
+    await flushPromises()
+
+    expect(statusSpy).toHaveBeenCalledTimes(2)
   })
 
   it('loads and displays invites on expand', async () => {

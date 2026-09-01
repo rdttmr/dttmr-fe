@@ -10,3 +10,9 @@ export interface PaginatedInvites {
   total: number
   count: number
 }
+
+export interface InviteStatusCounts {
+  active: number
+  expired: number
+  used: number
+}
