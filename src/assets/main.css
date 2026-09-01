@@ -130,6 +130,7 @@
 }
 
 .page {
+  width: 100%;
   min-height: 100vh;
   padding: 1rem 1rem calc(var(--nav-height) + var(--safe-bottom) + 1.5rem);
   padding-top: calc(1rem + var(--safe-top));
