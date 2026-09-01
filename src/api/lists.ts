@@ -36,7 +36,7 @@ export async function getListItemsApi(listId: string): Promise<ListItem[]> {
 }
 
 export async function createListItemApi(payload: CreateListItemPayload): Promise<ListItem> {
-  const response = await apiClient.post('/lists/item', payload)
+  const response = await apiClient.post('/lists/items', payload)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to create list item'))
   }
@@ -44,7 +44,7 @@ export async function createListItemApi(payload: CreateListItemPayload): Promise
 }
 
 export async function updateListItemApi(payload: UpdateListItemPayload): Promise<void> {
-  const response = await apiClient.put('/lists/item', payload)
+  const response = await apiClient.put('/lists/items', payload)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to update list item'))
   }
@@ -82,7 +82,7 @@ export async function deleteListApi(listId: string): Promise<void> {
 }
 
 export async function deleteListItemApi(itemId: string): Promise<void> {
-  const response = await apiClient.delete(`/lists/item/${itemId}`)
+  const response = await apiClient.delete(`/lists/items/${itemId}`)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to delete list item'))
   }
