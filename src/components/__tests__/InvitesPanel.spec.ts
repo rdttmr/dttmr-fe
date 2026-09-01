@@ -262,6 +262,34 @@ describe('InvitesPanel', () => {
     expect((deleteBtn.element as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('disables share for used and expired invites, but leaves expired invites deletable', async () => {
+    const usedInvite: Invite = {
+      id: 'invite-1',
+      code: 'USEDCODE',
+      consumed_at: '2026-01-01T00:00:00.000Z',
+    }
+    const expiredInvite: Invite = {
+      id: 'invite-2',
+      code: 'EXPCODE',
+      expires_at: '2020-01-01T00:00:00.000Z',
+    }
+    vi.spyOn(invitesApi, 'getInvitesApi').mockResolvedValueOnce(
+      paginated([usedInvite, expiredInvite]),
+    )
+
+    const wrapper = mount(InvitesPanel)
+    await wrapper.find('.invites-toggle').trigger('click')
+    await flushPromises()
+
+    const shareButtons = wrapper.findAll('.ticket-btn:not(.ticket-btn-danger)')
+    expect((shareButtons[0]!.element as HTMLButtonElement).disabled).toBe(true)
+    expect((shareButtons[1]!.element as HTMLButtonElement).disabled).toBe(true)
+
+    const deleteButtons = wrapper.findAll('.ticket-btn-danger')
+    expect((deleteButtons[0]!.element as HTMLButtonElement).disabled).toBe(true)
+    expect((deleteButtons[1]!.element as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('shows an error banner when loading invites fails', async () => {
     vi.spyOn(invitesApi, 'getInvitesApi').mockRejectedValueOnce(new Error('Network error'))
 

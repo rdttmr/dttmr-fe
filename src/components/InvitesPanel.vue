@@ -138,7 +138,11 @@ async function shareInvite(invite: Invite) {
 
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title: 'Join dttmr', text: 'Use this link to create your account', url })
+      await navigator.share({
+        title: 'Join dttmr',
+        text: 'Use this link to create your account',
+        url,
+      })
       return
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -248,7 +252,15 @@ function inviteDetail(invite: Invite): string {
             <span class="invite-detail">{{ inviteDetail(invite) }}</span>
 
             <div v-if="pendingDeleteId !== invite.id" class="invite-actions">
-              <button type="button" class="ticket-btn" @click="shareInvite(invite)">
+              <button
+                type="button"
+                class="ticket-btn"
+                :disabled="inviteStatus(invite) !== 'active'"
+                :title="
+                  inviteStatus(invite) !== 'active' ? 'Only active invites can be shared' : ''
+                "
+                @click="shareInvite(invite)"
+              >
                 {{ sharedId === invite.id ? 'Copied!' : 'Share' }}
               </button>
               <button

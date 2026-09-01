@@ -101,7 +101,7 @@ describe('lists API', () => {
     } as unknown as Response)
     global.fetch = fetchMock
 
-    const result = await createListApi({ name: 'Groceries', user_ids: [] })
+    const result = await createListApi({ name: 'Groceries' })
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE_URL}/lists`,
