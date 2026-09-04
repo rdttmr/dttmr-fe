@@ -19,6 +19,24 @@ const listsStore = useListsStore()
         listsStore.pendingCount
       }}</span>
     </RouterLink>
+    <RouterLink to="/exercises" class="nav-item" active-class="is-active">
+      <svg
+        class="nav-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="1" y="9" width="3" height="6" rx="1" />
+        <rect x="4.5" y="7" width="2" height="10" rx="1" />
+        <line x1="6.5" y1="12" x2="17.5" y2="12" />
+        <rect x="17.5" y="7" width="2" height="10" rx="1" />
+        <rect x="20" y="9" width="3" height="6" rx="1" />
+      </svg>
+      <span class="nav-label">Exercises</span>
+    </RouterLink>
     <RouterLink to="/account" class="nav-item" active-class="is-active">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3.2" />
