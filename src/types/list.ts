@@ -25,14 +25,12 @@ export interface CreateListItemPayload {
   title: string
 }
 
-export interface UpdateListItemPayload {
-  list_item_id: string
-  title?: string
-  is_completed?: boolean
-}
-
 export interface SetListItemCompletedPayload {
   is_completed: boolean
+}
+
+export interface SetListItemTitlePayload {
+  title: string
 }
 
 export interface AddUserToListPayload {

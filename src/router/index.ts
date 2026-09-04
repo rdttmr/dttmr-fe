@@ -19,6 +19,12 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/exercises',
+      name: 'exercises',
+      component: () => import('../views/ExercisesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),

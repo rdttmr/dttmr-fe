@@ -5,7 +5,7 @@ import {
   createListApi,
   getListItemsApi,
   createListItemApi,
-  updateListItemApi,
+  updateListItemTitleApi,
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
@@ -77,7 +77,7 @@ describe('lists API', () => {
     expect(result).toEqual(mockItems)
   })
 
-  it('setListItemCompletedApi sends POST to /lists/items/{id}', async () => {
+  it('setListItemCompletedApi sends POST to /lists/items/{id}/complete', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -87,7 +87,7 @@ describe('lists API', () => {
     await setListItemCompletedApi('item-1', { is_completed: true })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/items/item-1`,
+      `${API_BASE_URL}/lists/items/item-1/complete`,
       expect.objectContaining({ method: 'POST' }),
     )
   })
@@ -137,18 +137,18 @@ describe('lists API', () => {
     expect(result).toEqual(mockItem)
   })
 
-  it('updateListItemApi sends PUT to /lists/items', async () => {
+  it('updateListItemTitleApi sends POST to /lists/items/{id}/title', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await updateListItemApi({ list_item_id: 'item-1', is_completed: true })
+    await updateListItemTitleApi('item-1', { title: 'Free-range eggs' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/items`,
-      expect.objectContaining({ method: 'PUT' }),
+      `${API_BASE_URL}/lists/items/item-1/title`,
+      expect.objectContaining({ method: 'POST' }),
     )
   })
 

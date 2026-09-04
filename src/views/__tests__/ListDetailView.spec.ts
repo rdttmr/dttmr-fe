@@ -121,7 +121,7 @@ describe('ListDetailView', () => {
     expect(wrapper.findComponent({ name: 'DeleteListModal' }).exists()).toBe(false)
   })
 
-  it('allows deleting list items via two clicks on item row menu', async () => {
+  it('allows deleting list items via menu and confirmation modal', async () => {
     const listsStore = useListsStore()
     const deleteItemSpy = vi.spyOn(listsStore, 'deleteListItem').mockResolvedValue()
     const sampleList: LocalList = {
@@ -156,8 +156,15 @@ describe('ListDetailView', () => {
     const deleteItemBtn = itemRow.find('.submenu-item-danger')
     expect(deleteItemBtn.exists()).toBe(true)
 
-    // 2nd click: delete item
+    // 2nd click: opens confirmation modal
     await deleteItemBtn.trigger('click')
+
+    const modal = itemRow.findComponent({ name: 'DeleteListItemModal' })
+    expect(modal.exists()).toBe(true)
+    expect(deleteItemSpy).not.toHaveBeenCalled()
+
+    // Confirm deletion in modal
+    await modal.find('.confirm-delete-btn').trigger('click')
 
     expect(deleteItemSpy).toHaveBeenCalledWith('item-1')
   })

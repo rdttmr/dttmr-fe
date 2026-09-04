@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { LocalList } from '@/database/db'
+import type { LocalListItem } from '@/database/db'
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue'
 
 const props = defineProps<{
-  list: LocalList
+  item: LocalListItem
 }>()
 
 const emit = defineEmits<{
@@ -22,9 +22,9 @@ function handleConfirm() {
 
 <template>
   <ConfirmDeleteModal
-    :title="`Delete &quot;${props.list.name}&quot;?`"
-    description="Are you sure you want to delete this list? This action cannot be undone and all items in this list will be deleted."
-    confirm-label="Delete list"
+    :title="`Delete &quot;${props.item.title}&quot;?`"
+    description="Are you sure you want to delete this item? This action cannot be undone."
+    confirm-label="Delete item"
     @close="handleClose"
     @confirm="handleConfirm"
   />

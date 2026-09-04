@@ -109,7 +109,7 @@ const listsApiMocks = vi.hoisted(() => ({
   createListApi: vi.fn<() => Promise<unknown>>(),
   getListItemsApi: vi.fn<() => Promise<unknown>>(),
   createListItemApi: vi.fn<() => Promise<unknown>>(),
-  updateListItemApi: vi.fn<() => Promise<unknown>>(),
+  updateListItemTitleApi: vi.fn<() => Promise<unknown>>(),
   setListItemCompletedApi: vi.fn<() => Promise<unknown>>(),
   addUserToListApi: vi.fn<() => Promise<unknown>>(),
   removeUserFromListApi: vi.fn<() => Promise<unknown>>(),
@@ -211,29 +211,28 @@ describe('useListsStore', () => {
     expect(store.error).toBe('Network error')
   })
 
-  it('updates a list item locally and pushes the change to the server', async () => {
+  it('updates a list item title locally and pushes the change via the dedicated endpoint', async () => {
     listsApiMocks.createListItemApi.mockResolvedValueOnce({
       id: 'server-item-2',
       list_id: '',
       title: 'Eggs',
       is_completed: false,
     })
-    listsApiMocks.updateListItemApi.mockResolvedValueOnce(undefined)
+    listsApiMocks.updateListItemTitleApi.mockResolvedValueOnce(undefined)
 
     const store = useListsStore()
     await store.createListItem('list-1', 'Eggs')
     await store.sync()
     const created = store.listItems.find((entry) => entry.title === 'Eggs')!
 
-    await store.updateListItem(created.id, { is_completed: true })
+    await store.updateListItemTitle(created.id, 'Free-range eggs')
     await store.sync()
 
-    expect(listsApiMocks.updateListItemApi).toHaveBeenCalledWith({
-      list_item_id: created.id,
-      is_completed: true,
+    expect(listsApiMocks.updateListItemTitleApi).toHaveBeenCalledWith(created.id, {
+      title: 'Free-range eggs',
     })
     const updated = store.listItems.find((entry) => entry.id === created.id)
-    expect(updated?.is_completed).toBe(true)
+    expect(updated?.title).toBe('Free-range eggs')
     expect(updated?.pendingSync).toBe(false)
   })
 

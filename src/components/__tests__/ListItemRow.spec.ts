@@ -47,7 +47,39 @@ describe('ListItemRow', () => {
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
   })
 
-  it('deletes item when Delete item is clicked in submenu', async () => {
+  it('toggles completed state when the title text is clicked', async () => {
+    const wrapper = mount(ListItemRow, {
+      props: {
+        item: sampleItem,
+      },
+    })
+
+    const listsStore = useListsStore()
+    const toggleSpy = vi.spyOn(listsStore, 'setListItemCompleted').mockResolvedValue()
+
+    await wrapper.find('.title').trigger('click')
+
+    expect(toggleSpy).toHaveBeenCalledWith('item-1', true)
+  })
+
+  it('opens the title editor via the Edit title submenu item', async () => {
+    const wrapper = mount(ListItemRow, {
+      props: {
+        item: sampleItem,
+      },
+    })
+
+    await wrapper.find('.menu-trigger-btn').trigger('click')
+    const editBtn = wrapper.find('.submenu-item:not(.submenu-item-danger)')
+    expect(editBtn.text()).toContain('Edit title')
+
+    await editBtn.trigger('click')
+
+    expect(wrapper.find('.title-input').exists()).toBe(true)
+    expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
+  })
+
+  it('opens a confirmation modal when Delete item is clicked in submenu', async () => {
     const wrapper = mount(ListItemRow, {
       props: {
         item: sampleItem,
@@ -61,10 +93,42 @@ describe('ListItemRow', () => {
     await wrapper.find('.menu-trigger-btn').trigger('click')
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(true)
 
-    // 2nd click: delete item
+    // 2nd click: opens confirmation modal, doesn't delete yet
     await wrapper.find('.submenu-item-danger').trigger('click')
 
-    expect(deleteSpy).toHaveBeenCalledWith('item-1')
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
+    expect(deleteSpy).not.toHaveBeenCalled()
+
+    const modal = wrapper.findComponent({ name: 'DeleteListItemModal' })
+    expect(modal.exists()).toBe(true)
+    expect(modal.text()).toContain('Delete "Apples"?')
+
+    // Confirm deletion in modal
+    await modal.find('.confirm-delete-btn').trigger('click')
+
+    expect(deleteSpy).toHaveBeenCalledWith('item-1')
+    expect(wrapper.findComponent({ name: 'DeleteListItemModal' }).exists()).toBe(false)
+  })
+
+  it('cancels item deletion when cancel is clicked in confirmation modal', async () => {
+    const wrapper = mount(ListItemRow, {
+      props: {
+        item: sampleItem,
+      },
+    })
+
+    const listsStore = useListsStore()
+    const deleteSpy = vi.spyOn(listsStore, 'deleteListItem').mockResolvedValue()
+
+    await wrapper.find('.menu-trigger-btn').trigger('click')
+    await wrapper.find('.submenu-item-danger').trigger('click')
+
+    const modal = wrapper.findComponent({ name: 'DeleteListItemModal' })
+    expect(modal.exists()).toBe(true)
+
+    await modal.find('.cancel-btn').trigger('click')
+
+    expect(deleteSpy).not.toHaveBeenCalled()
+    expect(wrapper.findComponent({ name: 'DeleteListItemModal' }).exists()).toBe(false)
   })
 })

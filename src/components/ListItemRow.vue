@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { LocalListItem } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
+import DeleteListItemModal from '@/components/DeleteListItemModal.vue'
 
 const props = defineProps<{ item: LocalListItem }>()
 
@@ -16,6 +17,7 @@ const editedTitle = ref(props.item.title)
 // diffing against the live (possibly just-changed) prop and overwriting the
 // remote edit with the untouched original text.
 const originalTitle = ref(props.item.title)
+const showDeleteModal = ref(false)
 const {
   isOpen: isMenuOpen,
   containerRef: menuContainerRef,
@@ -27,6 +29,7 @@ function toggleCompleted() {
 }
 
 function startEditing() {
+  isMenuOpen.value = false
   editedTitle.value = props.item.title
   originalTitle.value = props.item.title
   isEditing.value = true
@@ -35,15 +38,22 @@ function startEditing() {
 function saveTitle() {
   const title = editedTitle.value.trim()
   if (title && title !== originalTitle.value) {
-    listsStore.updateListItem(props.item.id, { title })
+    listsStore.updateListItemTitle(props.item.id, title)
   }
   isEditing.value = false
 }
 
-function handleDelete(event: Event) {
-  event.preventDefault()
-  event.stopPropagation()
+function handleOpenDelete() {
   isMenuOpen.value = false
+  showDeleteModal.value = true
+}
+
+function handleCloseDelete() {
+  showDeleteModal.value = false
+}
+
+function handleConfirmDelete() {
+  showDeleteModal.value = false
   listsStore.deleteListItem(props.item.id)
 }
 </script>
@@ -68,7 +78,7 @@ function handleDelete(event: Event) {
       @keyup.escape="isEditing = false"
       @blur="saveTitle"
     />
-    <span v-else class="title" @click="startEditing">{{ item.title }}</span>
+    <span v-else class="title" @click="toggleCompleted">{{ item.title }}</span>
 
     <span v-if="item.pendingSync" class="pending-dot" title="Not yet synced"></span>
 
@@ -90,11 +100,25 @@ function handleDelete(event: Event) {
       </button>
 
       <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
+        <button type="button" class="submenu-item" role="menuitem" @click="startEditing">
+          <svg
+            class="submenu-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M17 3a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L17 3z" />
+          </svg>
+          <span>Edit title</span>
+        </button>
         <button
           type="button"
           class="submenu-item submenu-item-danger"
           role="menuitem"
-          @click="handleDelete"
+          @click="handleOpenDelete"
         >
           <svg
             class="submenu-icon"
@@ -116,6 +140,13 @@ function handleDelete(event: Event) {
         </button>
       </div>
     </div>
+
+    <DeleteListItemModal
+      v-if="showDeleteModal"
+      :item="item"
+      @close="handleCloseDelete"
+      @confirm="handleConfirmDelete"
+    />
   </li>
 </template>
 

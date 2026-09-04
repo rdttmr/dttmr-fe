@@ -4,8 +4,8 @@ import type {
   ListItem,
   CreateListPayload,
   CreateListItemPayload,
-  UpdateListItemPayload,
   SetListItemCompletedPayload,
+  SetListItemTitlePayload,
 } from '@/types/list'
 
 export interface LocalList extends List {
@@ -36,7 +36,7 @@ interface SyncQueueEntryBase {
 type SyncOperationPayloads = {
   createList: CreateListPayload
   createListItem: CreateListItemPayload
-  updateListItem: UpdateListItemPayload
+  updateListItemTitle: SetListItemTitlePayload
   setListItemCompleted: SetListItemCompletedPayload
   deleteList: DeleteListPayload
   deleteListItem: DeleteListItemPayload

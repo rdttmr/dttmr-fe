@@ -5,8 +5,8 @@ import type {
   ListItem,
   CreateListPayload,
   CreateListItemPayload,
-  UpdateListItemPayload,
   SetListItemCompletedPayload,
+  SetListItemTitlePayload,
   AddUserToListPayload,
   RemoveUserFromListPayload,
 } from '@/types/list'
@@ -43,20 +43,23 @@ export async function createListItemApi(payload: CreateListItemPayload): Promise
   return response.json()
 }
 
-export async function updateListItemApi(payload: UpdateListItemPayload): Promise<void> {
-  const response = await apiClient.put('/lists/items', payload)
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to update list item'))
-  }
-}
-
 export async function setListItemCompletedApi(
   itemId: string,
   payload: SetListItemCompletedPayload,
 ): Promise<void> {
-  const response = await apiClient.post(`/lists/items/${itemId}`, payload)
+  const response = await apiClient.post(`/lists/items/${itemId}/complete`, payload)
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to update list item status'))
+  }
+}
+
+export async function updateListItemTitleApi(
+  itemId: string,
+  payload: SetListItemTitlePayload,
+): Promise<void> {
+  const response = await apiClient.post(`/lists/items/${itemId}/title`, payload)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to update list item title'))
   }
 }
 

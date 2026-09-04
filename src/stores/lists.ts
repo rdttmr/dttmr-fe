@@ -13,7 +13,7 @@ import {
   createListApi,
   getListItemsApi,
   createListItemApi,
-  updateListItemApi,
+  updateListItemTitleApi,
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
@@ -180,12 +180,9 @@ export const useListsStore = defineStore('lists', () => {
     return localItem
   }
 
-  async function updateListItem(
-    itemId: string,
-    changes: { title?: string; is_completed?: boolean },
-  ) {
+  async function updateListItemTitle(itemId: string, title: string) {
     const patch = {
-      ...changes,
+      title,
       modified_at: new Date().toISOString(),
       pendingSync: true,
     }
@@ -193,8 +190,8 @@ export const useListsStore = defineStore('lists', () => {
     const existingItem = listItems.value.find((entry) => entry.id === itemId)
     if (existingItem) Object.assign(existingItem, patch)
     await enqueue({
-      type: 'updateListItem',
-      payload: { list_item_id: itemId, ...changes },
+      type: 'updateListItemTitle',
+      payload: { title },
       localListItemId: itemId,
     })
     scheduleSync()
@@ -357,11 +354,10 @@ export const useListsStore = defineStore('lists', () => {
         }
         break
       }
-      case 'updateListItem': {
-        await updateListItemApi(entry.payload)
-        if (entry.localListItemId) {
-          await markListItemSynced(entry.localListItemId)
-        }
+      case 'updateListItemTitle': {
+        if (!entry.localListItemId) break
+        await updateListItemTitleApi(entry.localListItemId, entry.payload)
+        await markListItemSynced(entry.localListItemId)
         break
       }
       case 'setListItemCompleted': {
@@ -570,7 +566,7 @@ export const useListsStore = defineStore('lists', () => {
     refresh,
     createList,
     createListItem,
-    updateListItem,
+    updateListItemTitle,
     setListItemCompleted,
     addUserToList,
     removeUserFromList,
