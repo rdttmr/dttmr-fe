@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
 import cvPhoto from '@/assets/cv-photo.jpg'
+import CvIcon from '@/components/CvIcon.vue'
 
 // This is a public sub-page with no link from the rest of the app, and it
 // shouldn't show up in search results. index.html is shared across every
@@ -53,6 +54,13 @@ interface Skill {
 interface AdditionalExperience {
   title: string
   desc: string
+}
+
+interface Project {
+  title: string
+  repo: string
+  desc: string
+  url: string
 }
 
 const SKILL_MAX = 8
@@ -203,6 +211,21 @@ const skills: Skill[] = [
   { name: 'Claude Code', rating: 4 },
 ]
 
+const projects: Project[] = [
+  {
+    title: 'Frontend',
+    repo: 'dttmr-fe',
+    desc: 'Offline-first PWA for shared, syncable to-do lists. Vue 3 + TypeScript.',
+    url: 'https://git.dittmar.dev/robin/dttmr-fe',
+  },
+  {
+    title: 'API',
+    repo: 'dttmr-api',
+    desc: 'Go backend powering auth and sync for the to-do list app.',
+    url: 'https://git.dittmar.dev/robin/dttmr-api',
+  },
+]
+
 const additionalExperiences: AdditionalExperience[] = [
   {
     title: 'Minecraft Mod',
@@ -236,30 +259,46 @@ const additionalExperiences: AdditionalExperience[] = [
     <section class="card info-card">
       <h4>Contacts</h4>
       <p class="row">
-        <span>Phone</span>
+        <span class="row-label"><CvIcon name="phone" />Phone</span>
         <strong class="mono-num">+49159/01668799</strong>
       </p>
       <p class="row">
-        <span>Email</span>
+        <span class="row-label"><CvIcon name="email" />Email</span>
         <strong>robindittmar@gmail.com</strong>
       </p>
       <p class="row">
-        <span>Location</span>
+        <span class="row-label"><CvIcon name="location" />Location</span>
         <strong>Düsseldorf</strong>
       </p>
       <p class="row">
-        <span>LinkedIn</span>
+        <span class="row-label"><CvIcon name="linkedin" />LinkedIn</span>
         <a href="https://www.linkedin.com/in/robin-dittmar-948424310/" target="_blank" rel="noopener"
           >robindittmar</a
         >
       </p>
       <p class="row">
-        <span>GitHub</span>
+        <span class="row-label"><CvIcon name="github" />GitHub</span>
         <a href="https://github.com/rdttmr" target="_blank" rel="noopener">rdttmr</a>
       </p>
     </section>
 
-    <h1 class="section-heading">Summary</h1>
+    <h1 class="section-heading"><CvIcon name="code" />Check Out My Work</h1>
+    <ul class="cards">
+      <li v-for="project in projects" :key="project.repo">
+        <a class="card project-card" :href="project.url" target="_blank" rel="noopener">
+          <span class="project-icon"><CvIcon name="code" /></span>
+          <span class="project-body">
+            <span class="project-title">
+              {{ project.title }}
+              <span class="mono-num project-repo">{{ project.repo }}</span>
+            </span>
+            <span class="project-desc">{{ project.desc }}</span>
+          </span>
+        </a>
+      </li>
+    </ul>
+
+    <h1 class="section-heading"><CvIcon name="summary" />Summary</h1>
     <section class="card info-card">
       <p class="summary-text">
         Passionate Software Developer professional with over 8 years of experience in backend
@@ -270,7 +309,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </p>
     </section>
 
-    <h1 class="section-heading">Experience</h1>
+    <h1 class="section-heading"><CvIcon name="experience" />Experience</h1>
     <ul class="cards">
       <li v-for="job in experience" :key="job.company + job.dates">
         <article class="card job-card">
@@ -287,7 +326,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Education</h1>
+    <h1 class="section-heading"><CvIcon name="education" />Education</h1>
     <ul class="cards">
       <li v-for="edu in education" :key="edu.school">
         <article class="card job-card">
@@ -300,7 +339,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Key Achievements</h1>
+    <h1 class="section-heading"><CvIcon name="achievements" />Key Achievements</h1>
     <section class="card info-card">
       <div v-for="item in achievements" :key="item.title" class="achievement-row">
         <h4>{{ item.title }}</h4>
@@ -308,7 +347,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </div>
     </section>
 
-    <h1 class="section-heading">Languages</h1>
+    <h1 class="section-heading"><CvIcon name="languages" />Languages</h1>
     <section class="card info-card">
       <div v-for="lang in languages" :key="lang.name" class="rating-row">
         <p class="row">
@@ -321,7 +360,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </div>
     </section>
 
-    <h1 class="section-heading">Industry Experience</h1>
+    <h1 class="section-heading"><CvIcon name="skills" />Industry Experience</h1>
     <section class="card info-card">
       <div class="skill-grid">
         <div v-for="skill in skills" :key="skill.name" class="skill-row">
@@ -333,7 +372,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </div>
     </section>
 
-    <h1 class="section-heading">Additional Experience</h1>
+    <h1 class="section-heading"><CvIcon name="additional" />Additional Experience</h1>
     <ul class="cards">
       <li v-for="item in additionalExperiences" :key="item.title">
         <article class="card job-card">
@@ -343,7 +382,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Interests</h1>
+    <h1 class="section-heading"><CvIcon name="interests" />Interests</h1>
     <section class="card info-card">
       <div class="tags">
         <span v-for="interest in interests" :key="interest" class="tag">{{ interest }}</span>
@@ -390,8 +429,17 @@ const additionalExperiences: AdditionalExperience[] = [
 }
 
 .section-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 1.1rem;
   margin: 1.75rem 0 0.75rem;
+}
+
+.section-heading .cv-icon {
+  font-size: 0.85rem;
+  color: var(--c-accent-strong);
+  opacity: 0.85;
 }
 
 .info-card {
@@ -419,6 +467,16 @@ const additionalExperiences: AdditionalExperience[] = [
 
 .row strong {
   color: var(--c-heading);
+}
+
+.row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.row-label .cv-icon {
+  color: var(--c-text-soft);
 }
 
 .row a {
@@ -537,6 +595,65 @@ const additionalExperiences: AdditionalExperience[] = [
   height: 5px;
   border-radius: 50%;
   background: var(--c-accent);
+}
+
+/* project links */
+.project-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--c-accent-soft);
+  transition:
+    transform 0.15s ease-in-out,
+    border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+
+.project-card:hover,
+.project-card:focus-visible {
+  border-color: var(--c-accent-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.project-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+  font-size: 1.1rem;
+}
+
+.project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.project-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--c-heading);
+  font-size: 0.95rem;
+}
+
+.project-repo {
+  font-size: 0.75rem;
+  color: var(--c-accent-strong);
+}
+
+.project-desc {
+  font-size: 0.82rem;
+  color: var(--c-text-soft);
 }
 
 /* skills */
