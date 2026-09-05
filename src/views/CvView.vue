@@ -249,7 +249,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </p>
       <p class="row">
         <span>LinkedIn</span>
-        <a href="https://www.linkedin.com/in/robindittmar-948424310/" target="_blank" rel="noopener"
+        <a href="https://www.linkedin.com/in/robin-dittmar-948424310/" target="_blank" rel="noopener"
           >robindittmar</a
         >
       </p>
