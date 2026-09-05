@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
 import cvPhoto from '@/assets/cv-photo.jpg'
+import CvIcon from '@/components/CvIcon.vue'
 
 // This is a public sub-page with no link from the rest of the app, and it
 // shouldn't show up in search results. index.html is shared across every
@@ -18,6 +19,13 @@ onMounted(() => {
 onBeforeUnmount(() => {
   robotsMeta?.remove()
 })
+
+interface Project {
+  title: string
+  repo: string
+  desc: string
+  url: string
+}
 
 interface ExperienceEntry {
   company: string
@@ -57,6 +65,21 @@ interface AdditionalExperience {
 
 const SKILL_MAX = 8
 const LANGUAGE_MAX = 5
+
+const projects: Project[] = [
+  {
+    title: 'Frontend',
+    repo: 'dttmr-fe',
+    desc: 'Offline-first PWA for shared, syncable to-do lists and tracking workouts. Vue 3 + TypeScript.',
+    url: 'https://git.dittmar.dev/robin/dttmr-fe',
+  },
+  {
+    title: 'API',
+    repo: 'dttmr-api',
+    desc: 'Go backend powering auth and sync for the to-do list/workout tracking app.',
+    url: 'https://git.dittmar.dev/robin/dttmr-api',
+  },
+]
 
 const experience: ExperienceEntry[] = [
   {
@@ -229,37 +252,54 @@ const additionalExperiences: AdditionalExperience[] = [
       <img class="avatar" :src="cvPhoto" alt="Portrait of Robin Dittmar" />
       <div>
         <h1>Robin Dittmar</h1>
-        <span class="tag tag-accent">Software Developer</span>
+        <span class="role-badge">Software Developer</span>
       </div>
     </div>
+    <div class="ledger-rule" aria-hidden="true"></div>
 
-    <section class="card info-card">
+    <section class="card info-card contact-card">
       <h4>Contacts</h4>
       <p class="row">
-        <span>Phone</span>
-        <strong class="mono-num">+49159/01668799</strong>
+        <span class="row-label"><CvIcon name="phone" />Phone</span>
+        <a class="mono-num" href="tel:+4915901668799">+49 1590 1668799</a>
       </p>
       <p class="row">
-        <span>Email</span>
-        <strong>robindittmar@gmail.com</strong>
+        <span class="row-label"><CvIcon name="email" />Email</span>
+        <a href="mailto:robindittmar@gmail.com">robindittmar@gmail.com</a>
       </p>
       <p class="row">
-        <span>Location</span>
+        <span class="row-label"><CvIcon name="location" />Location</span>
         <strong>Düsseldorf</strong>
       </p>
       <p class="row">
-        <span>LinkedIn</span>
-        <a href="https://www.linkedin.com/in/robindittmar-948424310/" target="_blank" rel="noopener"
+        <span class="row-label"><CvIcon name="linkedin" />LinkedIn</span>
+        <a href="https://www.linkedin.com/in/robin-dittmar-948424310/" target="_blank" rel="noopener"
           >robindittmar</a
         >
       </p>
       <p class="row">
-        <span>GitHub</span>
+        <span class="row-label"><CvIcon name="github" />GitHub</span>
         <a href="https://github.com/rdttmr" target="_blank" rel="noopener">rdttmr</a>
       </p>
     </section>
 
-    <h1 class="section-heading">Summary</h1>
+    <h1 class="section-heading"><CvIcon name="code" />Check Out My Work</h1>
+    <ul class="cards">
+      <li v-for="project in projects" :key="project.repo">
+        <a class="card project-card" :href="project.url" target="_blank" rel="noopener">
+          <span class="project-icon"><CvIcon name="code" /></span>
+          <span class="project-body">
+            <span class="project-title">
+              {{ project.title }}
+              <span class="mono-num project-repo">{{ project.repo }}</span>
+            </span>
+            <span class="project-desc">{{ project.desc }}</span>
+          </span>
+        </a>
+      </li>
+    </ul>
+
+    <h1 class="section-heading"><CvIcon name="summary" />Summary</h1>
     <section class="card info-card">
       <p class="summary-text">
         Passionate Software Developer professional with over 8 years of experience in backend
@@ -270,8 +310,8 @@ const additionalExperiences: AdditionalExperience[] = [
       </p>
     </section>
 
-    <h1 class="section-heading">Experience</h1>
-    <ul class="cards">
+    <h1 class="section-heading"><CvIcon name="experience" />Experience</h1>
+    <ul class="cards timeline timeline-current">
       <li v-for="job in experience" :key="job.company + job.dates">
         <article class="card job-card">
           <div class="job-card-head">
@@ -287,8 +327,8 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Education</h1>
-    <ul class="cards">
+    <h1 class="section-heading"><CvIcon name="education" />Education</h1>
+    <ul class="cards timeline">
       <li v-for="edu in education" :key="edu.school">
         <article class="card job-card">
           <div class="job-card-head">
@@ -300,40 +340,53 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Key Achievements</h1>
+    <h1 class="section-heading"><CvIcon name="achievements" />Key Achievements</h1>
     <section class="card info-card">
       <div v-for="item in achievements" :key="item.title" class="achievement-row">
-        <h4>{{ item.title }}</h4>
-        <p>{{ item.desc }}</p>
+        <span class="achv-icon"><CvIcon name="verified" /></span>
+        <div>
+          <h4>{{ item.title }}</h4>
+          <p>{{ item.desc }}</p>
+        </div>
       </div>
     </section>
 
-    <h1 class="section-heading">Languages</h1>
+    <h1 class="section-heading"><CvIcon name="languages" />Languages</h1>
     <section class="card info-card">
       <div v-for="lang in languages" :key="lang.name" class="rating-row">
         <p class="row">
           <span>{{ lang.name }}</span>
           <span class="tag">{{ lang.level }}</span>
         </p>
-        <div class="meter meter-lg">
-          <div class="meter-fill" :style="{ width: (lang.rating / LANGUAGE_MAX) * 100 + '%' }"></div>
+        <div class="tally tally-lg">
+          <span
+            v-for="n in LANGUAGE_MAX"
+            :key="n"
+            class="tally-tick"
+            :class="{ filled: n <= lang.rating }"
+          ></span>
         </div>
       </div>
     </section>
 
-    <h1 class="section-heading">Industry Experience</h1>
+    <h1 class="section-heading"><CvIcon name="skills" />Industry Experience</h1>
     <section class="card info-card">
       <div class="skill-grid">
         <div v-for="skill in skills" :key="skill.name" class="skill-row">
           <span class="skill-name">{{ skill.name }}</span>
-          <div class="meter">
-            <div class="meter-fill" :style="{ width: (skill.rating / SKILL_MAX) * 100 + '%' }"></div>
+          <div class="tally">
+            <span
+              v-for="n in SKILL_MAX"
+              :key="n"
+              class="tally-tick"
+              :class="{ filled: n <= skill.rating }"
+            ></span>
           </div>
         </div>
       </div>
     </section>
 
-    <h1 class="section-heading">Additional Experience</h1>
+    <h1 class="section-heading"><CvIcon name="additional" />Additional Experience</h1>
     <ul class="cards">
       <li v-for="item in additionalExperiences" :key="item.title">
         <article class="card job-card">
@@ -343,7 +396,7 @@ const additionalExperiences: AdditionalExperience[] = [
       </li>
     </ul>
 
-    <h1 class="section-heading">Interests</h1>
+    <h1 class="section-heading"><CvIcon name="interests" />Interests</h1>
     <section class="card info-card">
       <div class="tags">
         <span v-for="interest in interests" :key="interest" class="tag">{{ interest }}</span>
@@ -370,16 +423,18 @@ const additionalExperiences: AdditionalExperience[] = [
 .profile-top {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 1.1rem;
+  margin-bottom: 1rem;
 }
 
 .profile-top h1 {
   font-size: 1.4rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.45rem;
+  letter-spacing: 0.01em;
 }
 
 .avatar {
+  display: block;
   width: 76px;
   height: 76px;
   border-radius: 50%;
@@ -389,9 +444,48 @@ const additionalExperiences: AdditionalExperience[] = [
   flex-shrink: 0;
 }
 
+.role-badge {
+  display: inline-flex;
+  padding: 0.22rem 0.65rem;
+  border-radius: 3px;
+  background: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.ledger-rule {
+  height: 4px;
+  margin-bottom: 1.5rem;
+  border-top: 1.5px solid var(--c-border-hover);
+  border-bottom: 1px dashed var(--c-border);
+}
+
 .section-heading {
-  font-size: 1.1rem;
-  margin: 1.75rem 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.08rem;
+  font-weight: 600;
+  margin: 2rem 0 0.85rem;
+}
+
+.section-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--c-border);
+  margin-left: 0.35rem;
+}
+
+.section-heading .cv-icon {
+  font-size: 0.85rem;
+  color: var(--c-accent-strong);
+}
+
+.card {
+  border-radius: 4px;
+  box-shadow: none;
 }
 
 .info-card {
@@ -401,6 +495,11 @@ const additionalExperiences: AdditionalExperience[] = [
 .info-card h4 {
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
+}
+
+.contact-card {
+  border-color: var(--c-accent-soft);
+  box-shadow: 0 10px 28px rgba(61, 114, 180, 0.22);
 }
 
 .row {
@@ -417,8 +516,30 @@ const additionalExperiences: AdditionalExperience[] = [
   margin-bottom: 0;
 }
 
+.info-card > .row {
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--c-border);
+}
+
+.info-card > .row:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
 .row strong {
   color: var(--c-heading);
+}
+
+.row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.row-label .cv-icon {
+  color: var(--c-text-soft);
 }
 
 .row a {
@@ -430,8 +551,30 @@ const additionalExperiences: AdditionalExperience[] = [
   color: var(--c-text);
 }
 
+.achievement-row {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
 .achievement-row + .achievement-row {
   margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--c-border);
+}
+
+.achv-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+  border-radius: 50%;
+  background: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+  font-size: 0.9rem;
 }
 
 .achievement-row h4 {
@@ -449,22 +592,28 @@ const additionalExperiences: AdditionalExperience[] = [
   margin-top: 0.85rem;
 }
 
-/* rating meters */
-.meter {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--c-bg-mute);
-  overflow: hidden;
+/* rating tallies */
+.tally {
+  display: flex;
+  gap: 3px;
 }
 
-.meter-fill {
-  height: 100%;
-  border-radius: 999px;
+.tally-tick {
+  flex: 1;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--c-bg-mute);
+}
+
+.tally-tick.filled {
   background: var(--c-accent);
 }
 
-.meter-lg {
+.tally-lg {
+  max-width: 82%;
+}
+
+.tally-lg .tally-tick {
   height: 7px;
 }
 
@@ -476,6 +625,46 @@ const additionalExperiences: AdditionalExperience[] = [
   list-style: none;
   padding: 0;
   margin: 0;
+}
+
+/* timeline (experience / education): a real chronological record, so the
+   rail + nodes carry meaning rather than decorate */
+.timeline {
+  position: relative;
+  gap: 0.9rem;
+  padding-left: 1.1rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 1px;
+  background: var(--c-border-hover);
+}
+
+.timeline > li {
+  position: relative;
+}
+
+.timeline > li::before {
+  content: '';
+  position: absolute;
+  left: -1.1rem;
+  top: 1.1rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-bg);
+  border: 1.5px solid var(--c-text-soft);
+}
+
+.timeline-current > li:first-child::before {
+  border-color: var(--c-accent-strong);
+  background: var(--c-accent-strong);
+  box-shadow: 0 0 0 3px var(--c-accent-bg);
 }
 
 .job-card {
@@ -539,6 +728,65 @@ const additionalExperiences: AdditionalExperience[] = [
   background: var(--c-accent);
 }
 
+/* project links */
+.project-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--c-accent-soft);
+  transition:
+    transform 0.15s ease-in-out,
+    border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+
+.project-card:hover,
+.project-card:focus-visible {
+  border-color: var(--c-accent-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.project-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+  font-size: 1.1rem;
+}
+
+.project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.project-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--c-heading);
+  font-size: 0.95rem;
+}
+
+.project-repo {
+  font-size: 0.75rem;
+  color: var(--c-accent-strong);
+}
+
+.project-desc {
+  font-size: 0.82rem;
+  color: var(--c-text-soft);
+}
+
 /* skills */
 .skill-grid {
   display: grid;
@@ -579,10 +827,5 @@ const additionalExperiences: AdditionalExperience[] = [
   border-radius: 999px;
   background-color: var(--c-bg-mute);
   color: var(--c-text-soft);
-}
-
-.tag-accent {
-  background-color: var(--c-accent-bg);
-  color: var(--c-accent-strong);
 }
 </style>
