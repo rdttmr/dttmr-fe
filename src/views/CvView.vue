@@ -609,6 +609,10 @@ const additionalExperiences: AdditionalExperience[] = [
   background: var(--c-accent);
 }
 
+.tally-lg {
+  max-width: 82%;
+}
+
 .tally-lg .tally-tick {
   height: 7px;
 }
