@@ -11,6 +11,12 @@ import type {
 
 export interface LocalList extends List {
   pendingSync?: boolean
+  // Stable identity for this list on this client, independent of `id`.
+  // `id` starts out as a client-generated placeholder and gets swapped for
+  // the server-assigned one once "createList" syncs (see remapListId) -
+  // clientId never changes, so UI code that needs a stable key across that
+  // swap (e.g. <TransitionGroup>'s :key) can use it instead of `id`.
+  clientId?: string
 }
 
 export interface LocalListItem extends ListItem {

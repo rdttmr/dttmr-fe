@@ -147,8 +147,10 @@ export const useListsStore = defineStore('lists', () => {
 
   async function createList(name: string): Promise<LocalList> {
     const now = new Date().toISOString()
+    const id = generateId()
     const localList: LocalList = {
-      id: generateId(),
+      id,
+      clientId: id,
       name,
       created_at: now,
       modified_at: now,
@@ -538,7 +540,11 @@ export const useListsStore = defineStore('lists', () => {
       for (const serverList of serverLists) {
         const existingList = localById.get(serverList.id)
         if (!existingList || !existingList.pendingSync) {
-          toPut.push({ ...serverList, pendingSync: false })
+          toPut.push({
+            ...serverList,
+            pendingSync: false,
+            clientId: existingList?.clientId ?? serverList.id,
+          })
         }
       }
       if (toPut.length > 0) {

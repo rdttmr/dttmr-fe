@@ -110,7 +110,7 @@ async function handleCreateList() {
     <TransitionGroup v-if="displayedLists.length > 0" tag="ul" name="list-reorder" class="lists">
       <li
         v-for="list in displayedLists"
-        :key="list.id"
+        :key="list.clientId ?? list.id"
         :ref="(el) => setItemRef(list.id, el as Element | null)"
         class="list-row"
         :class="{ 'no-transition': isPointerActive && draggingId === list.id }"
