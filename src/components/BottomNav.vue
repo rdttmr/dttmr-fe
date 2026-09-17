@@ -2,9 +2,11 @@
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
+import { useRecipesStore } from '@/stores/recipes'
 
 const authStore = useAuthStore()
 const listsStore = useListsStore()
+const recipesStore = useRecipesStore()
 </script>
 
 <template>
@@ -17,6 +19,24 @@ const listsStore = useListsStore()
       <span class="nav-label">Lists</span>
       <span v-if="listsStore.pendingCount > 0" class="nav-badge mono-num">{{
         listsStore.pendingCount
+      }}</span>
+    </RouterLink>
+    <RouterLink to="/recipes" class="nav-item" active-class="is-active">
+      <svg
+        class="nav-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </svg>
+      <span class="nav-label">Recipes</span>
+      <span v-if="recipesStore.pendingCount > 0" class="nav-badge mono-num">{{
+        recipesStore.pendingCount
       }}</span>
     </RouterLink>
     <RouterLink to="/exercises" class="nav-item" active-class="is-active">

@@ -98,6 +98,12 @@ const fakeDb = {
   lists: createFakeTable(),
   listItems: createFakeTable(),
   syncQueue: createFakeTable(true),
+  // lists.ts cross-notifies the recipes store (e.g. deleteList/deleteListItem
+  // drop any recipe membership referencing a removed item) - these tests
+  // don't exercise recipes themselves, so empty fake tables are enough to
+  // satisfy those calls.
+  recipes: createFakeTable(),
+  recipeItems: createFakeTable(),
 }
 
 vi.mock('@/database/db', () => ({

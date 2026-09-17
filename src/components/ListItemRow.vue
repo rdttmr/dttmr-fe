@@ -28,6 +28,17 @@ function toggleCompleted() {
   listsStore.setListItemCompleted(props.item.id, !props.item.is_completed)
 }
 
+function handleTitleClick(event: MouseEvent) {
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  const clickRatio = (event.clientX - rect.left) / rect.width
+  if (clickRatio <= 0.6) {
+    toggleCompleted()
+  } else {
+    startEditing()
+  }
+}
+
 function startEditing() {
   isMenuOpen.value = false
   editedTitle.value = props.item.title
@@ -78,7 +89,7 @@ function handleConfirmDelete() {
       @keyup.escape="isEditing = false"
       @blur="saveTitle"
     />
-    <span v-else class="title" @click="toggleCompleted">{{ item.title }}</span>
+    <span v-else class="title" @click="handleTitleClick">{{ item.title }}</span>
 
     <span v-if="item.pendingSync" class="pending-dot" title="Not yet synced"></span>
 

@@ -48,6 +48,18 @@ describe('ListItemRow', () => {
   })
 
   it('toggles completed state when the title text is clicked', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 100,
+      top: 0,
+      height: 20,
+      right: 100,
+      bottom: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    })
+
     const wrapper = mount(ListItemRow, {
       props: {
         item: sampleItem,
@@ -57,9 +69,41 @@ describe('ListItemRow', () => {
     const listsStore = useListsStore()
     const toggleSpy = vi.spyOn(listsStore, 'setListItemCompleted').mockResolvedValue()
 
-    await wrapper.find('.title').trigger('click')
+    // Click within the left 60% of the title, which toggles completion
+    // rather than starting the title editor.
+    await wrapper.find('.title').trigger('click', { clientX: 10 })
 
     expect(toggleSpy).toHaveBeenCalledWith('item-1', true)
+  })
+
+  it('starts editing the title when the title text is clicked past the toggle zone', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 100,
+      top: 0,
+      height: 20,
+      right: 100,
+      bottom: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    })
+
+    const wrapper = mount(ListItemRow, {
+      props: {
+        item: sampleItem,
+      },
+    })
+
+    const listsStore = useListsStore()
+    const toggleSpy = vi.spyOn(listsStore, 'setListItemCompleted').mockResolvedValue()
+
+    // Click within the right 40% of the title, which starts editing
+    // rather than toggling completion.
+    await wrapper.find('.title').trigger('click', { clientX: 90 })
+
+    expect(toggleSpy).not.toHaveBeenCalled()
+    expect(wrapper.find('.title-input').exists()).toBe(true)
   })
 
   it('opens the title editor via the Edit title submenu item', async () => {

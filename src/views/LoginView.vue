@@ -3,11 +3,13 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
+import { useRecipesStore } from '@/stores/recipes'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const listsStore = useListsStore()
+const recipesStore = useRecipesStore()
 
 const email = ref('')
 const password = ref('')
@@ -33,6 +35,7 @@ async function handleSubmit() {
     // off a fresh, now-authenticated sync so lists and items actually show
     // up after logging in.
     listsStore.sync().catch(() => {})
+    recipesStore.sync().catch(() => {})
 
     const redirect = route.query.redirect
     router.push(typeof redirect === 'string' && redirect ? redirect : '/')

@@ -1,10 +1,24 @@
 <script setup lang="ts">
 import { useEscapeKey } from '@/composables/useEscapeKey'
 
-defineProps<{
-  title: string
-  titleId: string
-}>()
+withDefaults(
+  defineProps<{
+    title: string
+    titleId: string
+    // Widens the card for content that benefits from more horizontal room
+    // (e.g. a two-level picker), without affecting the default modals.
+    wide?: boolean
+    // Caps the card to the viewport height and lets the body slot scroll on
+    // its own (header/footer stay put), instead of the card growing to fit
+    // its content and getting clipped off-screen once that content is
+    // taller than the viewport.
+    scrollable?: boolean
+  }>(),
+  {
+    wide: false,
+    scrollable: false,
+  },
+)
 
 const emit = defineEmits<{
   close: []
@@ -19,7 +33,13 @@ function handleClose() {
 
 <template>
   <div class="modal-overlay" @click.self="handleClose">
-    <div class="modal-card card" role="dialog" aria-modal="true" :aria-labelledby="titleId">
+    <div
+      class="modal-card card"
+      :class="{ 'is-wide': wide, 'is-scrollable': scrollable }"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+    >
       <div class="modal-header">
         <h3 :id="titleId">{{ title }}</h3>
         <button type="button" class="close-btn" aria-label="Close modal" @click="handleClose">
@@ -27,7 +47,9 @@ function handleClose() {
         </button>
       </div>
 
-      <slot />
+      <div class="modal-body">
+        <slot />
+      </div>
 
       <div class="modal-footer">
         <slot name="footer" />
@@ -61,11 +83,35 @@ function handleClose() {
   animation: slideUp 0.15s ease-out;
 }
 
+.modal-card.is-wide {
+  max-width: 560px;
+}
+
+.modal-card.is-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: min(640px, calc(100vh - 2rem));
+}
+
+/* Caps the body to the remaining card height and hands off scrolling to
+   whatever the caller puts inside it, rather than scrolling the whole body
+   itself - a caller with pinned content above a long list (e.g. a search
+   field) structures its own slot content as a flex column with the
+   scrollable part taking `flex: 1; min-height: 0; overflow-y: auto`. */
+.modal-card.is-scrollable .modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.5rem;
+  flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -93,6 +139,7 @@ function handleClose() {
   justify-content: flex-end;
   gap: 0.6rem;
   margin-top: 1rem;
+  flex-shrink: 0;
 }
 
 .modal-footer .btn {
