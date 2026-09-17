@@ -1,18 +1,31 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { LocalListItem } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue'
 
 const props = defineProps<{ item: LocalListItem; recipeId: string }>()
 
 const listsStore = useListsStore()
 const recipesStore = useRecipesStore()
 
+const showRemoveModal = ref(false)
+
 function toggleCompleted() {
   listsStore.setListItemCompleted(props.item.id, !props.item.is_completed)
 }
 
 function handleRemove() {
+  showRemoveModal.value = true
+}
+
+function handleRemoveCancel() {
+  showRemoveModal.value = false
+}
+
+function handleRemoveConfirm() {
+  showRemoveModal.value = false
   recipesStore.removeItemFromRecipe(props.recipeId, props.item.id)
 }
 </script>
@@ -41,6 +54,15 @@ function handleRemove() {
     >
       ✕
     </button>
+
+    <ConfirmDeleteModal
+      v-if="showRemoveModal"
+      :title="`Remove &quot;${item.title}&quot;?`"
+      description="Are you sure you want to remove this item from the recipe?"
+      confirm-label="Remove"
+      @close="handleRemoveCancel"
+      @confirm="handleRemoveConfirm"
+    />
   </li>
 </template>
 
