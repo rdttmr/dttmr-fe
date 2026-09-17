@@ -25,6 +25,27 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/recipes',
+      name: 'recipes',
+      component: () => import('../views/RecipesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    // Placed before /recipes/:id so the literal "join" segment isn't
+    // swallowed as a recipe id.
+    {
+      path: '/recipes/join',
+      name: 'recipe-join',
+      component: () => import('../views/RecipeJoinView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/recipes/:id',
+      name: 'recipe-detail',
+      component: () => import('../views/RecipeDetailView.vue'),
+      meta: { requiresAuth: true },
+      props: true,
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),

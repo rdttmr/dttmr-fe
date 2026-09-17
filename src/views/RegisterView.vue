@@ -4,11 +4,13 @@ import { useRouter, useRoute } from 'vue-router'
 import { createUserApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
+import { useRecipesStore } from '@/stores/recipes'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const listsStore = useListsStore()
+const recipesStore = useRecipesStore()
 
 const inviteCode = computed(() => {
   const invite = route.query.invite
@@ -45,6 +47,7 @@ async function handleSubmit() {
 
     await authStore.login({ email: email.value, password: password.value })
     listsStore.sync().catch(() => {})
+    recipesStore.sync().catch(() => {})
     router.push('/')
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create account'

@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { useRecipesStore } from '@/stores/recipes'
 import {
   db,
   type LocalList,
@@ -246,6 +247,10 @@ export const useListsStore = defineStore('lists', () => {
   }
 
   async function deleteList(listId: string) {
+    const removedItemIds = listItems.value
+      .filter((item) => item.list_id === listId)
+      .map((item) => item.id)
+
     await db.lists.delete(listId)
     await db.listItems.where('list_id').equals(listId).delete()
     removeLocalList(listId)
@@ -256,6 +261,11 @@ export const useListsStore = defineStore('lists', () => {
       localListId: listId,
     })
     scheduleSync()
+
+    const recipesStore = useRecipesStore()
+    for (const itemId of removedItemIds) {
+      await recipesStore.removeItemFromAllRecipes(itemId)
+    }
   }
 
   // Applies a full reordering of the user's lists (e.g. from a drag-and-drop
@@ -298,6 +308,8 @@ export const useListsStore = defineStore('lists', () => {
       localListItemId: itemId,
     })
     scheduleSync()
+
+    await useRecipesStore().removeItemFromAllRecipes(itemId)
   }
 
   // Remaps a client-generated temporary list id to the id assigned by the
@@ -382,6 +394,8 @@ export const useListsStore = defineStore('lists', () => {
         payload: updatedPayload,
       })
     }
+
+    await useRecipesStore().remapListItemReferences(oldId, newId)
   }
 
   async function markListItemSynced(itemId: string) {
@@ -615,6 +629,11 @@ export const useListsStore = defineStore('lists', () => {
 
       for (const record of toPut) upsertListItem(record)
       for (const id of idsToDelete) removeLocalListItem(id)
+
+      const recipesStore = useRecipesStore()
+      for (const id of idsToDelete) {
+        await recipesStore.removeItemFromAllRecipes(id)
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load list items from server'
     }
@@ -655,5 +674,6 @@ export const useListsStore = defineStore('lists', () => {
     sync,
     pullFromServer,
     pullListItems,
+    upsertListItem,
   }
 })

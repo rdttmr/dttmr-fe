@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
+import { useRecipesStore } from '@/stores/recipes'
 
 const authStore = useAuthStore()
 const listsStore = useListsStore()
+const recipesStore = useRecipesStore()
 const router = useRouter()
 
 async function handleLogout() {
@@ -13,16 +15,20 @@ async function handleLogout() {
   router.push('/login')
 }
 
+const combinedError = computed(() => listsStore.error ?? recipesStore.error)
+const combinedPendingCount = computed(() => listsStore.pendingCount + recipesStore.pendingCount)
+const combinedIsSyncing = computed(() => listsStore.isSyncing || recipesStore.isSyncing)
+
 const stampClass = computed(() => {
   if (!authStore.isAuthenticated) return ''
-  if (listsStore.pendingCount > 0 || listsStore.isSyncing) return 'stamp-pending'
+  if (combinedPendingCount.value > 0 || combinedIsSyncing.value) return 'stamp-pending'
   return 'stamp-synced'
 })
 
 const stampTitle = computed(() => {
   if (!authStore.isAuthenticated) return 'Not signed in'
-  if (listsStore.isSyncing) return 'Syncing…'
-  if (listsStore.pendingCount > 0) return `${listsStore.pendingCount} change(s) waiting to sync`
+  if (combinedIsSyncing.value) return 'Syncing…'
+  if (combinedPendingCount.value > 0) return `${combinedPendingCount.value} change(s) waiting to sync`
   return 'Up to date'
 })
 </script>
@@ -36,10 +42,10 @@ const stampTitle = computed(() => {
 
     <div class="status">
       <span
-        v-if="listsStore.error"
+        v-if="combinedError"
         class="stamp stamp-danger"
-        :title="listsStore.error"
-        :aria-label="listsStore.error"
+        :title="combinedError"
+        :aria-label="combinedError"
         role="img"
       ></span>
       <span
