@@ -13,6 +13,7 @@ import type {
   CreateRecipePayload,
   AddListItemToRecipePayload,
   RemoveListItemFromRecipePayload,
+  OrderRecipesPayload,
 } from '@/types/recipe'
 
 export interface LocalList extends List {
@@ -86,6 +87,7 @@ type SyncOperationPayloads = {
   removeRecipeItem: RemoveListItemFromRecipePayload
   deleteRecipe: DeleteRecipePayload
   uncheckRecipe: UncheckRecipePayload
+  orderRecipes: OrderRecipesPayload
 }
 
 export type SyncOperationType = keyof SyncOperationPayloads

@@ -20,6 +20,10 @@ export interface RemoveListItemFromRecipePayload {
   list_item_id: string
 }
 
+export interface OrderRecipesPayload {
+  recipe_ids: string[]
+}
+
 export interface RecipeShareCode {
   code: string
 }

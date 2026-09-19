@@ -21,7 +21,10 @@ import {
   uncheckRecipeApi,
   shareRecipeApi,
   joinRecipeApi,
+  orderRecipesApi,
 } from '@/api/recipes'
+import { isServerRejection } from '@/api/http'
+import { rebaseOrder } from '@/utils/orderRebase'
 
 // Mirrors the debounce in stores/lists.ts: collapses a burst of edits
 // (checking several items into a recipe in a row) into a single sync pass.
@@ -33,7 +36,13 @@ const RECIPE_OP_TYPES: SyncOperationType[] = [
   'removeRecipeItem',
   'deleteRecipe',
   'uncheckRecipe',
+  'orderRecipes',
 ]
+
+// A queued reorder that keeps failing for reasons other than a server
+// rejection (server down, 5xx) is retried on the next few sync passes, then
+// dropped in favour of the server's order rather than retried forever.
+const MAX_ORDER_ATTEMPTS = 3
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -50,11 +59,18 @@ export const useRecipesStore = defineStore('recipes', () => {
   const error = ref<string | null>(null)
   const pendingCount = ref(0)
 
-  // Recipes carry a server-assigned `position`, but there's no reorder
-  // endpoint (unlike lists), so every recipe sits at position 0 - created_at
-  // desc alone determines display order, newest first.
+  // Recipes carry a server-assigned `position`, rearranged via
+  // reorderRecipes(). New recipes (local-only or freshly synced) always come
+  // back as position 0 - by design, so a new recipe always lands at the top -
+  // which means several recipes can share a position. created_at desc breaks
+  // that tie, newest first, and also covers a local recipe created but not
+  // yet synced (no position of its own yet: defaults to 0 below).
   const sortedRecipes = computed(() =>
-    [...recipes.value].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')),
+    [...recipes.value].sort((a, b) => {
+      const positionDiff = (a.position ?? 0) - (b.position ?? 0)
+      if (positionDiff !== 0) return positionDiff
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    }),
   )
 
   function itemsForRecipe(recipeId: string): LocalListItem[] {
@@ -188,6 +204,38 @@ export const useRecipesStore = defineStore('recipes', () => {
       type: 'deleteRecipe',
       payload: { id: recipeId },
       localRecipeId: recipeId,
+    })
+    scheduleSync()
+  }
+
+  // Applies a full reordering of the user's recipes (e.g. from a
+  // drag-and-drop gesture). Same approach as reorderLists in stores/lists.ts:
+  // positions are reassigned optimistically to every recipe in `orderedIds`
+  // and marked pendingSync, so a pull racing the queued "orderRecipes" entry
+  // can't clobber the optimistic order before it syncs.
+  async function reorderRecipes(orderedIds: string[]) {
+    await Promise.all(
+      orderedIds.map((id, index) => db.recipes.update(id, { position: index, pendingSync: true })),
+    )
+    for (const [index, id] of orderedIds.entries()) {
+      const existing = recipes.value.find((entry) => entry.id === id)
+      if (existing) {
+        existing.position = index
+        existing.pendingSync = true
+      }
+    }
+
+    // Only the latest requested order matters, so any not-yet-synced
+    // "orderRecipes" entry is superseded rather than left to also replay.
+    const staleEntries = await db.syncQueue.where('type').equals('orderRecipes').toArray()
+    if (staleEntries.length > 0) {
+      await db.syncQueue.bulkDelete(staleEntries.map((entry) => entry.id!))
+      pendingCount.value = Math.max(0, pendingCount.value - staleEntries.length)
+    }
+
+    await enqueue({
+      type: 'orderRecipes',
+      payload: { recipe_ids: orderedIds },
     })
     scheduleSync()
   }
@@ -330,6 +378,21 @@ export const useRecipesStore = defineStore('recipes', () => {
         payload: updatedPayload,
       })
     }
+
+    // "orderRecipes" entries aren't tied to a single localRecipeId (they carry
+    // every recipe's id in payload.recipe_ids), so they need their own remap
+    // pass.
+    const affectedOrderEntries = await db.syncQueue.where('type').equals('orderRecipes').toArray()
+    for (const orderEntry of affectedOrderEntries) {
+      if (orderEntry.type !== 'orderRecipes' || !orderEntry.payload.recipe_ids.includes(oldId)) {
+        continue
+      }
+      await db.syncQueue.update(orderEntry.id!, {
+        payload: {
+          recipe_ids: orderEntry.payload.recipe_ids.map((id) => (id === oldId ? newId : id)),
+        },
+      })
+    }
   }
 
   // Called by stores/lists.ts remapListItemId once a list item's
@@ -390,7 +453,65 @@ export const useRecipesStore = defineStore('recipes', () => {
         await pullRecipeItemsInternal(entry.payload.id)
         break
       }
+      case 'orderRecipes': {
+        await pushRecipeOrder(entry.payload.recipe_ids)
+        await settleRecipeOrder(entry.payload.recipe_ids)
+        break
+      }
     }
+  }
+
+  // Sends a reorder. The server rejects an id list that doesn't match its
+  // current set of recipes exactly, which is what a reorder queued offline
+  // turns into once another device adds or deletes a recipe. A rejection is
+  // therefore not final: rebase the user's order onto the recipes the server
+  // actually has and send that once. Anything that still fails propagates.
+  async function pushRecipeOrder(ids: string[]) {
+    try {
+      await orderRecipesApi({ recipe_ids: ids })
+      return
+    } catch (err) {
+      if (!isServerRejection(err)) throw err
+    }
+
+    await orderRecipesApi({ recipe_ids: rebaseOrder(ids, await getRecipesApi()) })
+  }
+
+  // Clears the optimistic "pendingSync" flag reorderRecipes() put on every
+  // recipe in the order, so the pull that follows a sync pass is allowed to
+  // overwrite their positions again - with the values just accepted by the
+  // server, or (when a reorder is abandoned) the server's own order.
+  async function settleRecipeOrder(ids: string[]) {
+    await Promise.all(ids.map((id) => db.recipes.update(id, { pendingSync: false })))
+    const affectedIds = new Set(ids)
+    for (const recipe of recipes.value) {
+      if (affectedIds.has(recipe.id)) recipe.pendingSync = false
+    }
+  }
+
+  // A reorder is a display preference, not data other queued operations
+  // depend on, so its failure must never stall the queue. A server rejection
+  // (even after the rebase above) can't succeed on retry and is dropped
+  // immediately; other failures get a few attempts. Dropping settles the
+  // optimistic order so the pull that follows picks up the server's.
+  async function handleFailedOrder(entry: SyncQueueEntry, err: unknown) {
+    const message = err instanceof Error ? err.message : 'Sync failed'
+    const giveUp = isServerRejection(err) || entry.attempts + 1 >= MAX_ORDER_ATTEMPTS
+
+    if (!giveUp) {
+      if (entry.id !== undefined) {
+        await db.syncQueue.update(entry.id, { attempts: entry.attempts + 1, lastError: message })
+      }
+      error.value = message
+      return
+    }
+
+    if (entry.id !== undefined) {
+      await db.syncQueue.delete(entry.id)
+      pendingCount.value = Math.max(0, pendingCount.value - 1)
+    }
+    if (entry.type === 'orderRecipes') await settleRecipeOrder(entry.payload.recipe_ids)
+    error.value = `Couldn't save the new recipe order (${message}). Showing the server's order instead.`
   }
 
   async function runSync() {
@@ -414,6 +535,11 @@ export const useRecipesStore = defineStore('recipes', () => {
             pendingCount.value = Math.max(0, pendingCount.value - 1)
           }
         } catch (err) {
+          if (entry.type === 'orderRecipes') {
+            await handleFailedOrder(entry, err)
+            continue
+          }
+
           const message = err instanceof Error ? err.message : 'Sync failed'
           if (entry.id !== undefined) {
             await db.syncQueue.update(entry.id, {
@@ -548,7 +674,9 @@ export const useRecipesStore = defineStore('recipes', () => {
         (link) => !link.pendingSync && !serverItemIds.has(link.listItemId),
       )
       if (linksToDelete.length > 0) {
-        await db.recipeItems.bulkDelete(linksToDelete.map((link) => [link.recipeId, link.listItemId]))
+        await db.recipeItems.bulkDelete(
+          linksToDelete.map((link) => [link.recipeId, link.listItemId]),
+        )
         for (const link of linksToDelete) removeLocalLink(link.recipeId, link.listItemId)
       }
     } catch (err) {
@@ -582,6 +710,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     refresh,
     createRecipe,
     deleteRecipe,
+    reorderRecipes,
     addItemToRecipe,
     removeItemFromRecipe,
     removeItemFromAllRecipes,

@@ -10,9 +10,11 @@ import {
   uncheckRecipeApi,
   shareRecipeApi,
   joinRecipeApi,
+  orderRecipesApi,
 } from '../recipes'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/auth'
+import { ApiError } from '@/api/http'
 
 describe('recipes API', () => {
   const originalFetch = global.fetch
@@ -250,5 +252,45 @@ describe('recipes API', () => {
     } as unknown as Response)
 
     await expect(joinRecipeApi('bad-code')).rejects.toThrow('Invalid code')
+  })
+
+  it('orderRecipesApi sends POST to /recipes/order with the ordered ids', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await orderRecipesApi({ recipe_ids: ['recipe-b', 'recipe-a'] })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/recipes/order`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ recipe_ids: ['recipe-b', 'recipe-a'] }),
+      }),
+    )
+  })
+
+  it('orderRecipesApi throws on failure', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Invalid order' }),
+    } as unknown as Response)
+
+    await expect(orderRecipesApi({ recipe_ids: [] })).rejects.toThrow('Invalid order')
+  })
+
+  it('orderRecipesApi reports the HTTP status so callers can tell a rejection from an outage', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'stale recipe ids' }),
+    } as unknown as Response)
+
+    const error = await orderRecipesApi({ recipe_ids: ['x'] }).catch((err: unknown) => err)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ message: 'stale recipe ids', status: 400 })
   })
 })

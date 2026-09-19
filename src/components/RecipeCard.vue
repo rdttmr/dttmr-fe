@@ -7,10 +7,14 @@ import { useRecipesStore } from '@/stores/recipes'
 import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 
-const props = defineProps<{ recipe: LocalRecipe }>()
+const props = withDefaults(
+  defineProps<{ recipe: LocalRecipe; dragging?: boolean; sortable?: boolean }>(),
+  { dragging: false, sortable: false },
+)
 const emit = defineEmits<{
   share: [recipe: LocalRecipe]
   delete: [recipe: LocalRecipe]
+  'handle-pointerdown': [event: PointerEvent]
 }>()
 
 const recipesStore = useRecipesStore()
@@ -40,7 +44,22 @@ function handleDelete(event: Event) {
 </script>
 
 <template>
-  <div class="recipe-card card menu-lift" :style="{ '--hue': hue }">
+  <div
+    class="recipe-card card menu-lift"
+    :class="{ 'is-dragging': dragging, 'is-sortable': sortable }"
+    :style="{ '--hue': hue }"
+  >
+    <button
+      v-if="sortable"
+      type="button"
+      class="grab-handle"
+      aria-label="Reorder recipe"
+      title="Drag to reorder"
+      @pointerdown="emit('handle-pointerdown', $event)"
+    >
+      <AppIcon name="grip" :size="16" />
+    </button>
+
     <RouterLink :to="`/recipes/${recipe.id}`" class="recipe-card-link">
       <span class="tile" aria-hidden="true">
         <AppIcon name="chef" :size="22" :stroke="1.9" />
@@ -102,12 +121,59 @@ function handleDelete(event: Event) {
   background-color: var(--c-bg-soft);
   transition:
     border-color 0.2s,
-    box-shadow 0.25s var(--ease-out);
+    box-shadow 0.25s var(--ease-out),
+    transform 0.2s var(--ease-out);
+}
+
+.recipe-card.is-sortable {
+  padding-left: 0.35rem;
 }
 
 .recipe-card:hover {
   border-color: var(--c-border-hover);
   box-shadow: var(--shadow-md);
+}
+
+.recipe-card.is-dragging {
+  border-color: var(--c-accent-strong);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 3px var(--c-focus);
+  transform: scale(1.02);
+}
+
+.grab-handle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--c-text-soft);
+  opacity: 0.55;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+}
+
+.recipe-card:hover .grab-handle,
+.grab-handle:hover {
+  opacity: 1;
+  color: var(--c-heading);
+}
+
+.recipe-card.is-dragging .grab-handle {
+  cursor: grabbing;
+  opacity: 1;
+  color: var(--c-accent-strong);
 }
 
 .recipe-card-link {

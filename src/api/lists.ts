@@ -1,5 +1,5 @@
 import { apiClient } from '@/api/client'
-import { extractErrorMessage } from '@/api/http'
+import { ApiError, extractErrorMessage } from '@/api/http'
 import type {
   List,
   ListItem,
@@ -81,7 +81,10 @@ export async function removeUserFromListApi(payload: RemoveUserFromListPayload):
 export async function orderListsApi(payload: OrderListsPayload): Promise<void> {
   const response = await apiClient.post('/lists/order', payload)
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to reorder lists'))
+    throw new ApiError(
+      await extractErrorMessage(response, 'Failed to reorder lists'),
+      response.status,
+    )
   }
 }
 

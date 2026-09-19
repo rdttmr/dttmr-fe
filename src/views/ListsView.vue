@@ -6,7 +6,7 @@ import ListCard from '@/components/ListCard.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import ShareListModal from '@/components/ShareListModal.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
-import { useListDragReorder } from '@/composables/useListDragReorder'
+import { useDragReorder } from '@/composables/useDragReorder'
 
 const listsStore = useListsStore()
 
@@ -21,7 +21,7 @@ const deletingList = ref<LocalList | null>(null)
 // mid-sync-pass update (e.g. total_items ticking over) can't yank a row out
 // from under the user's finger.
 const displayedLists = ref<LocalList[]>([])
-const { draggingId, isPointerActive, dragOffsetPx, setItemRef, onPointerDown } = useListDragReorder(
+const { draggingId, isPointerActive, dragOffsetPx, setItemRef, onPointerDown } = useDragReorder(
   displayedLists,
   (orderedIds) => {
     void listsStore.reorderLists(orderedIds)
