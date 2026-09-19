@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import type { LocalRecipe } from '@/database/db'
 import { useRecipesStore } from '@/stores/recipes'
+import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
 
 const props = defineProps<{
@@ -84,15 +85,17 @@ function handleClose() {
   <BaseModal
     :title="`Share &quot;${recipe.name}&quot;`"
     title-id="share-recipe-modal-title"
+    icon="share"
     @close="handleClose"
   >
-    <p class="modal-description">
-      Anyone with this link can join the recipe and see its items.
-    </p>
+    <p class="modal-description">Anyone with this link can join the recipe and see its items.</p>
     <p class="disclaimer">
-      Joining doesn't check whether they can already see the lists these items belong to — anyone
-      with the link can see the items regardless. That check isn't built yet, but sharing still
-      works.
+      <AppIcon name="alert" :size="16" />
+      <span
+        >Joining doesn't check whether they can already see the lists these items belong to — anyone
+        with the link can see the items regardless. That check isn't built yet, but sharing still
+        works.</span
+      >
     </p>
 
     <p v-if="isLoading" class="loading-hint">Generating link…</p>
@@ -100,6 +103,7 @@ function handleClose() {
     <template v-else-if="code">
       <code class="share-code" :title="code">{{ code }}</code>
       <button type="button" class="btn btn-primary share-btn" @click="handleShare">
+        <AppIcon :name="copied ? 'check' : 'link'" :size="18" :stroke="2.3" />
         {{ copied ? 'Copied!' : 'Copy share link' }}
       </button>
     </template>
@@ -117,16 +121,26 @@ function handleClose() {
 
 <style scoped>
 .modal-description {
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--c-text-soft);
   margin-bottom: 1rem;
 }
 
 .disclaimer {
-  font-size: 0.78rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  background-color: var(--c-warning-bg);
   color: var(--c-warning);
-  line-height: 1.4;
+  font-size: 0.78rem;
+  line-height: 1.45;
   margin-bottom: 1rem;
+}
+
+.disclaimer .icon {
+  margin-top: 0.1rem;
 }
 
 .loading-hint {
@@ -141,9 +155,9 @@ function handleClose() {
   letter-spacing: 0.04em;
   color: var(--c-heading);
   background-color: var(--c-bg-mute);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--c-border-hover);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
   margin-bottom: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -164,10 +178,11 @@ function handleClose() {
 
 .retry-btn {
   background: none;
-  border: 1px solid var(--c-danger);
+  border: 1px solid var(--c-danger-border);
   color: var(--c-danger);
   font-size: 0.75rem;
-  padding: 0.25rem 0.55rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
   flex-shrink: 0;

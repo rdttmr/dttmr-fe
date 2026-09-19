@@ -107,4 +107,33 @@ describe('RecipeCard', () => {
 
     expect(wrapper.find('.pending-tag').exists()).toBe(true)
   })
+
+  it('hides the drag handle unless the card is sortable', () => {
+    const wrapper = mount(RecipeCard, {
+      props: { recipe: sampleRecipe },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+
+    expect(wrapper.find('.grab-handle').exists()).toBe(false)
+  })
+
+  it('emits handle-pointerdown when the drag handle is pressed', async () => {
+    const wrapper = mount(RecipeCard, {
+      props: { recipe: sampleRecipe, sortable: true },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+
+    await wrapper.find('.grab-handle').trigger('pointerdown')
+
+    expect(wrapper.emitted('handle-pointerdown')).toHaveLength(1)
+  })
+
+  it('marks the card as dragging while a drag is in progress', () => {
+    const wrapper = mount(RecipeCard, {
+      props: { recipe: sampleRecipe, sortable: true, dragging: true },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+
+    expect(wrapper.find('.recipe-card').classes()).toContain('is-dragging')
+  })
 })

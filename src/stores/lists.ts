@@ -7,6 +7,7 @@ import {
   type LocalList,
   type LocalListItem,
   type SyncQueueEntry,
+  type SyncOperationType,
   type NewSyncQueueEntry,
 } from '@/database/db'
 import {
@@ -22,12 +23,32 @@ import {
   deleteListItemApi,
   orderListsApi,
 } from '@/api/lists'
+import { isServerRejection } from '@/api/http'
+import { rebaseOrder } from '@/utils/orderRebase'
 
 // A burst of rapid edits (ticking off several items, typing then blurring a
 // few titles) would otherwise trigger one full sync pass - queue drain plus
 // a GET /lists - per edit. Debouncing collapses a burst into a single pass a
 // short moment after the last edit.
 const SYNC_DEBOUNCE_MS = 400
+
+// This store owns exactly these queue operations; the recipes store owns the
+// rest (stores/recipes.ts RECIPE_OP_TYPES). Both share one sync queue table,
+// so each must only ever read - and delete - its own entries.
+const LIST_OP_TYPES: SyncOperationType[] = [
+  'createList',
+  'createListItem',
+  'updateListItemTitle',
+  'setListItemCompleted',
+  'deleteList',
+  'deleteListItem',
+  'orderLists',
+]
+
+// A queued reorder that keeps failing for reasons other than a server
+// rejection (server down, 5xx) is retried on the next few sync passes, then
+// dropped in favour of the server's order rather than retried forever.
+const MAX_ORDER_ATTEMPTS = 3
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -101,7 +122,7 @@ export const useListsStore = defineStore('lists', () => {
   async function refresh() {
     lists.value = await db.lists.toArray()
     listItems.value = await db.listItems.toArray()
-    pendingCount.value = await db.syncQueue.count()
+    pendingCount.value = await db.syncQueue.where('type').anyOf(LIST_OP_TYPES).count()
     isLoaded.value = true
   }
 
@@ -445,17 +466,64 @@ export const useListsStore = defineStore('lists', () => {
         break
       }
       case 'orderLists': {
-        await orderListsApi(entry.payload)
-        await Promise.all(
-          entry.payload.list_ids.map((id) => db.lists.update(id, { pendingSync: false })),
-        )
-        const affectedIds = new Set(entry.payload.list_ids)
-        for (const list of lists.value) {
-          if (affectedIds.has(list.id)) list.pendingSync = false
-        }
+        await pushListOrder(entry.payload.list_ids)
+        await settleListOrder(entry.payload.list_ids)
         break
       }
     }
+  }
+
+  // Sends a reorder. The server rejects an id list that doesn't match its
+  // current set of lists exactly, which is what a reorder queued offline
+  // turns into once another device adds or deletes a list. A rejection is
+  // therefore not final: rebase the user's order onto the lists the server
+  // actually has and send that once. Anything that still fails propagates.
+  async function pushListOrder(ids: string[]) {
+    try {
+      await orderListsApi({ list_ids: ids })
+      return
+    } catch (err) {
+      if (!isServerRejection(err)) throw err
+    }
+
+    await orderListsApi({ list_ids: rebaseOrder(ids, await getListsApi()) })
+  }
+
+  // Clears the optimistic "pendingSync" flag reorderLists() put on every
+  // list in the order, so the pull that follows a sync pass is allowed to
+  // overwrite their positions again - with the values just accepted by the
+  // server, or (when a reorder is abandoned) the server's own order.
+  async function settleListOrder(ids: string[]) {
+    await Promise.all(ids.map((id) => db.lists.update(id, { pendingSync: false })))
+    const affectedIds = new Set(ids)
+    for (const list of lists.value) {
+      if (affectedIds.has(list.id)) list.pendingSync = false
+    }
+  }
+
+  // A reorder is a display preference, not data other queued operations
+  // depend on, so its failure must never stall the queue. A server rejection
+  // (even after the rebase above) can't succeed on retry and is dropped
+  // immediately; other failures get a few attempts. Dropping settles the
+  // optimistic order so the pull that follows picks up the server's.
+  async function handleFailedOrder(entry: SyncQueueEntry, err: unknown) {
+    const message = err instanceof Error ? err.message : 'Sync failed'
+    const giveUp = isServerRejection(err) || entry.attempts + 1 >= MAX_ORDER_ATTEMPTS
+
+    if (!giveUp) {
+      if (entry.id !== undefined) {
+        await db.syncQueue.update(entry.id, { attempts: entry.attempts + 1, lastError: message })
+      }
+      error.value = message
+      return
+    }
+
+    if (entry.id !== undefined) {
+      await db.syncQueue.delete(entry.id)
+      pendingCount.value = Math.max(0, pendingCount.value - 1)
+    }
+    if (entry.type === 'orderLists') await settleListOrder(entry.payload.list_ids)
+    error.value = `Couldn't save the new list order (${message}). Showing the server's order instead.`
   }
 
   async function runSync() {
@@ -463,7 +531,9 @@ export const useListsStore = defineStore('lists', () => {
     error.value = null
 
     try {
-      const queue = await db.syncQueue.orderBy('createdAt').toArray()
+      const queue = (await db.syncQueue.where('type').anyOf(LIST_OP_TYPES).toArray()).sort(
+        (a, b) => a.createdAt - b.createdAt,
+      )
 
       for (const snapshotEntry of queue) {
         // Re-read the entry rather than trusting the queue snapshot: an
@@ -481,6 +551,11 @@ export const useListsStore = defineStore('lists', () => {
             pendingCount.value = Math.max(0, pendingCount.value - 1)
           }
         } catch (err) {
+          if (entry.type === 'orderLists') {
+            await handleFailedOrder(entry, err)
+            continue
+          }
+
           const message = err instanceof Error ? err.message : 'Sync failed'
           if (entry.id !== undefined) {
             await db.syncQueue.update(entry.id, {

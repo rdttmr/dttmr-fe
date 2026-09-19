@@ -23,8 +23,8 @@ export default defineConfig({
         description: 'dittmar.dev frontend app',
         start_url: '/',
         scope: '/',
-        theme_color: '#12161d',
-        background_color: '#12161d',
+        theme_color: '#0a0b12',
+        background_color: '#0a0b12',
         display: 'standalone',
         icons: [
           {

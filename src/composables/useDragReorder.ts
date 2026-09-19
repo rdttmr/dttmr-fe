@@ -1,7 +1,6 @@
 import { ref, type Ref } from 'vue'
-import type { LocalList } from '@/database/db'
-
-// Matches the CSS transition duration on `.list-row` (see ListsView.vue) -
+// Matches the CSS transition duration on the sortable rows (`.list-row` in
+// ListsView.vue, `.recipe-row` in RecipesView.vue) -
 // how long the dragged row's "snap into place" animation takes after drop,
 // before handing the final order back to the caller.
 const SETTLE_MS = 220
@@ -11,7 +10,7 @@ interface SlotRect {
   height: number
 }
 
-// Drag-to-reorder for the lists overview page. Deliberately built on raw
+// Drag-to-reorder for the lists and recipes overview pages. Deliberately built on raw
 // Pointer Events rather than HTML5 drag-and-drop, which has no usable touch
 // story - this needs to work as a one-finger drag on a phone first.
 //
@@ -23,8 +22,8 @@ interface SlotRect {
 // slot-steps while the transform absorbs the remainder - the row tracks the
 // finger with no lag and no double-counted offset. Every other row's shift
 // is left entirely to <TransitionGroup>'s built-in FLIP move animation.
-export function useListDragReorder(
-  items: Ref<LocalList[]>,
+export function useDragReorder(
+  items: Ref<{ id: string }[]>,
   onReorder: (orderedIds: string[]) => void,
 ) {
   const draggingId = ref<string | null>(null)

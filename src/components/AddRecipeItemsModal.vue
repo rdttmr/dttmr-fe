@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import AppIcon from '@/components/AppIcon.vue'
+import { hueFromString } from '@/utils/hue'
 import BaseModal from '@/components/BaseModal.vue'
 
 const props = defineProps<{ recipeId: string }>()
@@ -80,7 +82,14 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal title="Add items" title-id="add-recipe-items-modal-title" wide scrollable @close="handleClose">
+  <BaseModal
+    title="Add items"
+    title-id="add-recipe-items-modal-title"
+    icon="basket"
+    wide
+    scrollable
+    @close="handleClose"
+  >
     <div class="picker">
       <template v-if="!selectedListId">
         <p class="modal-description">Pick a list to add items from.</p>
@@ -92,7 +101,12 @@ function handleClose() {
         <div class="picker-scroll">
           <ul v-if="filteredLists.length > 0" class="picker-list">
             <li v-for="list in filteredLists" :key="list.clientId ?? list.id">
-              <button type="button" class="picker-row list-row" @click="selectList(list.id)">
+              <button
+                type="button"
+                class="picker-row"
+                :style="{ '--hue': hueFromString(list.name) }"
+                @click="selectList(list.id)"
+              >
                 <span class="avatar">{{ initial(list.name) }}</span>
                 <span class="row-main">
                   <span class="row-title">{{ list.name }}</span>
@@ -100,7 +114,7 @@ function handleClose() {
                     {{ list.total_items ?? 0 }} item{{ list.total_items === 1 ? '' : 's' }}
                   </span>
                 </span>
-                <span class="chevron">›</span>
+                <AppIcon name="chevron-right" class="chevron" :size="18" />
               </button>
             </li>
           </ul>
@@ -114,7 +128,8 @@ function handleClose() {
       <template v-else>
         <div class="item-picker-header">
           <button type="button" class="back-link" @click="backToLists">
-            ‹ {{ selectedList?.name ?? 'Lists' }}
+            <AppIcon name="chevron-left" :size="16" :stroke="2.4" />
+            {{ selectedList?.name ?? 'Lists' }}
           </button>
           <div class="field search-field">
             <input v-model="itemFilterQuery" type="text" placeholder="Filter items…" />
@@ -127,13 +142,13 @@ function handleClose() {
             <li v-for="item in filteredItemsForSelectedList" :key="item.id">
               <button
                 type="button"
-                class="picker-row item-row"
+                class="picker-row pick-item"
                 :class="{ 'is-included': isIncluded(item.id) }"
                 :aria-pressed="isIncluded(item.id)"
                 @click="toggleItem(item.id)"
               >
-                <span class="checkbox">
-                  <span v-if="isIncluded(item.id)">✓</span>
+                <span class="pick-check">
+                  <AppIcon name="check" :size="14" :stroke="3" />
                 </span>
                 <span class="row-title item-title">{{ item.title }}</span>
               </button>
@@ -148,7 +163,7 @@ function handleClose() {
     </div>
 
     <template #footer>
-      <button type="button" class="btn btn-secondary" @click="handleClose">Done</button>
+      <button type="button" class="btn btn-primary" @click="handleClose">Done</button>
     </template>
   </BaseModal>
 </template>
@@ -162,7 +177,7 @@ function handleClose() {
 }
 
 .modal-description {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--c-text-soft);
   margin-bottom: 0.85rem;
   flex-shrink: 0;
@@ -172,14 +187,8 @@ function handleClose() {
   flex-shrink: 0;
 }
 
-.back-link {
-  background: none;
-  border: none;
-  color: var(--c-accent-strong);
-  font-size: 0.85rem;
-  padding: 0;
-  margin-bottom: 0.75rem;
-  cursor: pointer;
+.item-picker-header .back-link {
+  margin-top: 0;
 }
 
 .search-field {
@@ -187,10 +196,17 @@ function handleClose() {
   margin-bottom: 0.6rem;
 }
 
+.search-field input {
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+}
+
 .picker-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  margin: 0 -0.5rem;
+  padding: 0 0.5rem;
 }
 
 .picker-list {
@@ -199,45 +215,52 @@ function handleClose() {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .picker-row {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.8rem;
   width: 100%;
-  padding: 0.55rem 0.6rem;
+  padding: 0.6rem 0.7rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--c-heading);
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   text-align: left;
   cursor: pointer;
   transition:
-    background-color 0.15s ease-in-out,
-    border-color 0.15s ease-in-out;
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.15s var(--ease-out);
 }
 
 .picker-row:hover {
-  background-color: var(--c-bg-mute);
-  border-color: var(--c-border);
+  background-color: var(--c-surface-hover);
+}
+
+.picker-row:active {
+  transform: scale(0.985);
 }
 
 .avatar {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background-color: var(--c-accent-bg);
-  color: var(--c-accent-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  color: #fff;
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--hue) 82% 62%),
+    hsl(calc(var(--hue) + 28) 85% 54%)
+  );
+  display: grid;
+  place-items: center;
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .row-main {
@@ -245,13 +268,14 @@ function handleClose() {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.05rem;
 }
 
 .row-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .row-subtitle {
@@ -262,21 +286,19 @@ function handleClose() {
 .chevron {
   flex-shrink: 0;
   color: var(--c-text-soft);
-  font-size: 1.1rem;
-  line-height: 1;
 }
 
-.item-row {
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+.pick-item {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
 }
 
-.item-row.is-included {
+.pick-item.is-included {
   background-color: var(--c-accent-bg);
   border-color: var(--c-border-hover);
 }
 
-.item-row.is-included .item-title {
+.pick-item.is-included .item-title {
   color: var(--c-accent-strong);
 }
 
@@ -287,30 +309,36 @@ function handleClose() {
   white-space: normal;
 }
 
-.checkbox {
+.pick-check {
   flex-shrink: 0;
-  width: 21px;
-  height: 21px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--c-border-hover);
-  background: transparent;
-  color: var(--c-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 700;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--c-border-hover);
+  color: #fff;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    transform 0.25s var(--ease-spring);
 }
 
-.item-row.is-included .checkbox {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
+.pick-check .icon {
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.15s,
+    transform 0.25s var(--ease-spring);
 }
 
-.empty-hint {
-  font-size: 0.85rem;
-  color: var(--c-text-soft);
-  text-align: center;
-  padding: 2rem 0;
+.pick-item.is-included .pick-check {
+  background-image: var(--grad-accent);
+  border-color: transparent;
+}
+
+.pick-item.is-included .pick-check .icon {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>

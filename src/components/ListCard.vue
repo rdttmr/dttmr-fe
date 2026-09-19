@@ -4,6 +4,8 @@ import { RouterLink } from 'vue-router'
 import type { LocalList } from '@/database/db'
 import { useListsStore } from '@/stores/lists'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
+import { hueFromString } from '@/utils/hue'
+import AppIcon from '@/components/AppIcon.vue'
 
 const props = defineProps<{ list: LocalList; dragging?: boolean }>()
 const emit = defineEmits<{
@@ -47,10 +49,20 @@ function handleDelete(event: Event) {
   isMenuOpen.value = false
   emit('delete', props.list)
 }
+
+const hue = computed(() => hueFromString(props.list.name))
+const percent = computed(() =>
+  totalCount.value > 0 ? Math.round((completedCount.value / totalCount.value) * 100) : 0,
+)
+const isComplete = computed(() => totalCount.value > 0 && completedCount.value === totalCount.value)
 </script>
 
 <template>
-  <div class="list-card card" :class="{ 'is-dragging': dragging }">
+  <div
+    class="list-card card menu-lift"
+    :class="{ 'is-dragging': dragging, 'is-complete': isComplete }"
+    :style="{ '--hue': hue }"
+  >
     <button
       type="button"
       class="grab-handle"
@@ -58,25 +70,29 @@ function handleDelete(event: Event) {
       title="Drag to reorder"
       @pointerdown="emit('handle-pointerdown', $event)"
     >
-      <svg class="grab-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-        <circle cx="9" cy="6" r="1.6" />
-        <circle cx="15" cy="6" r="1.6" />
-        <circle cx="9" cy="12" r="1.6" />
-        <circle cx="15" cy="12" r="1.6" />
-        <circle cx="9" cy="18" r="1.6" />
-        <circle cx="15" cy="18" r="1.6" />
-      </svg>
+      <AppIcon name="grip" :size="16" />
     </button>
 
     <RouterLink :to="`/lists/${list.id}`" class="list-card-link">
+      <span class="tile" aria-hidden="true">
+        <AppIcon :name="isComplete ? 'check' : 'list'" :size="20" :stroke="2.2" />
+      </span>
       <div class="list-card-main">
         <h3>{{ list.name }}</h3>
         <p class="meta">
           <span class="mono-num">{{ completedCount }}/{{ totalCount }}</span> done
           <span v-if="list.pendingSync" class="pending-tag">syncing…</span>
         </p>
+        <div
+          class="progress"
+          role="progressbar"
+          :aria-valuenow="percent"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span class="progress-fill" :style="{ width: `${percent}%` }"></span>
+        </div>
       </div>
-      <span class="chevron">›</span>
     </RouterLink>
 
     <div ref="menuContainerRef" class="menu-container">
@@ -89,30 +105,12 @@ function handleDelete(event: Event) {
         title="More options"
         @click="toggleMenu"
       >
-        <svg class="dots-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <circle cx="5" cy="12" r="2" />
-          <circle cx="12" cy="12" r="2" />
-          <circle cx="19" cy="12" r="2" />
-        </svg>
+        <AppIcon name="more" :size="18" />
       </button>
 
       <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
         <button type="button" class="submenu-item" role="menuitem" @click="handleShare">
-          <svg
-            class="submenu-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
+          <AppIcon name="share" :size="16" />
           <span>Share list</span>
         </button>
         <button
@@ -121,22 +119,7 @@ function handleDelete(event: Event) {
           role="menuitem"
           @click="handleDelete"
         >
-          <svg
-            class="submenu-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="3 6 5 6 21 6" />
-            <path
-              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-            />
-            <line x1="10" y1="11" x2="10" y2="17" />
-            <line x1="14" y1="11" x2="14" y2="17" />
-          </svg>
+          <AppIcon name="trash" :size="16" />
           <span>Delete list</span>
         </button>
       </div>
@@ -149,22 +132,27 @@ function handleDelete(event: Event) {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.85rem 1rem;
+  gap: 0.35rem;
+  padding: 0.85rem 0.6rem 0.85rem 0.35rem;
   color: inherit;
+  background-color: var(--c-bg-soft);
   transition:
-    border-color 0.15s ease-in-out,
-    transform 0.1s ease-in-out;
+    border-color 0.2s,
+    box-shadow 0.25s var(--ease-out),
+    transform 0.2s var(--ease-out);
 }
 
 .list-card:hover {
   border-color: var(--c-border-hover);
+  box-shadow: var(--shadow-md);
 }
 
 .list-card.is-dragging {
   border-color: var(--c-accent-strong);
-  box-shadow: var(--shadow-md);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 3px var(--c-focus);
+  transform: scale(1.02);
 }
 
 .grab-handle {
@@ -172,51 +160,66 @@ function handleDelete(event: Event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 44px;
-  margin: -0.5rem -0.2rem -0.5rem -0.5rem;
+  width: 26px;
+  height: 48px;
   padding: 0;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--c-text-soft);
+  opacity: 0.55;
   cursor: grab;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   transition:
-    background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out;
+    opacity 0.15s,
+    color 0.15s;
 }
 
+.list-card:hover .grab-handle,
 .grab-handle:hover {
-  background-color: var(--c-bg-mute);
+  opacity: 1;
   color: var(--c-heading);
 }
 
 .list-card.is-dragging .grab-handle {
   cursor: grabbing;
+  opacity: 1;
   color: var(--c-accent-strong);
-}
-
-.grab-icon {
-  display: block;
-  pointer-events: none;
 }
 
 .list-card-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.9rem;
   flex: 1;
   min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.list-card-link:active {
-  transform: scale(0.995);
+.tile {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  color: #fff;
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--hue) 82% 62%),
+    hsl(calc(var(--hue) + 28) 85% 54%)
+  );
+  box-shadow:
+    0 6px 16px hsl(var(--hue) 80% 50% / 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.3s var(--ease-spring);
+}
+
+.list-card:hover .tile {
+  transform: rotate(-5deg) scale(1.06);
 }
 
 .list-card-main {
@@ -225,127 +228,55 @@ function handleDelete(event: Event) {
 }
 
 .list-card-main h3 {
-  font-size: 1.02rem;
-  margin-bottom: 0.2rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .meta {
-  font-size: 0.78rem;
-  color: var(--c-text-soft);
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--c-text-soft);
+  margin-bottom: 0.5rem;
 }
 
 .pending-tag {
-  color: var(--c-accent-strong);
+  color: var(--c-warning);
 }
 
-.chevron {
-  color: var(--c-text-soft);
-  font-size: 1.3rem;
-  line-height: 1;
-  padding-right: 0.25rem;
+.progress {
+  height: 5px;
+  border-radius: 5px;
+  background-color: var(--c-border);
+  overflow: hidden;
 }
 
-.menu-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.menu-trigger-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--c-text-soft);
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition:
-    background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out,
-    border-color 0.15s ease-in-out;
-}
-
-.menu-trigger-btn:hover,
-.menu-trigger-btn[aria-expanded='true'] {
-  background-color: var(--c-bg-mute);
-  color: var(--c-heading);
-  border-color: var(--c-border);
-}
-
-.dots-icon {
+.progress-fill {
   display: block;
+  height: 100%;
+  border-radius: 5px;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--hue) 82% 62%),
+    hsl(calc(var(--hue) + 28) 85% 58%)
+  );
+  transition: width 0.6s var(--ease-out);
 }
 
-.submenu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  min-width: 140px;
-  background-color: var(--c-bg-elevated);
-  border: 1px solid var(--c-border-hover);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  padding: 0.35rem;
-  animation: dropdownIn 0.12s ease-out;
+.is-complete .progress-fill {
+  background-image: linear-gradient(90deg, var(--c-success), #7be8bd);
 }
 
-.submenu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--c-heading);
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out;
-}
-
-.submenu-item:hover {
-  background-color: var(--c-bg-mute);
-  color: var(--c-accent-strong);
-}
-
-.submenu-item-danger {
-  color: var(--c-danger);
-}
-
-.submenu-item-danger:hover {
-  background-color: var(--c-danger-bg);
-  color: var(--c-danger);
-}
-
-.submenu-icon {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
-
-@keyframes dropdownIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.is-complete .tile {
+  background-image: linear-gradient(135deg, #2fcf8f, #1fa97a);
+  box-shadow:
+    0 6px 16px rgba(47, 207, 143, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 </style>

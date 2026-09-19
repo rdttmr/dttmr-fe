@@ -1,10 +1,11 @@
 import { apiClient } from '@/api/client'
-import { extractErrorMessage } from '@/api/http'
+import { ApiError, extractErrorMessage } from '@/api/http'
 import type {
   Recipe,
   CreateRecipePayload,
   AddListItemToRecipePayload,
   RemoveListItemFromRecipePayload,
+  OrderRecipesPayload,
   RecipeShareCode,
 } from '@/types/recipe'
 import type { ListItem } from '@/types/list'
@@ -31,6 +32,16 @@ export async function getRecipeItemsApi(recipeId: string): Promise<ListItem[]> {
     throw new Error(await extractErrorMessage(response, 'Failed to load recipe items'))
   }
   return response.json()
+}
+
+export async function orderRecipesApi(payload: OrderRecipesPayload): Promise<void> {
+  const response = await apiClient.post('/recipes/order', payload)
+  if (!response.ok) {
+    throw new ApiError(
+      await extractErrorMessage(response, 'Failed to reorder recipes'),
+      response.status,
+    )
+  }
 }
 
 export async function deleteRecipeApi(recipeId: string): Promise<void> {

@@ -1,71 +1,57 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
+import AppIcon from '@/components/AppIcon.vue'
+import type { IconName } from '@/components/AppIcon.vue'
 
 const authStore = useAuthStore()
 const listsStore = useListsStore()
 const recipesStore = useRecipesStore()
+const route = useRoute()
+
+const tabs = computed<
+  { to: string; label: string; icon: IconName; names: string[]; badge: number }[]
+>(() => [
+  {
+    to: '/',
+    label: 'Lists',
+    icon: 'list',
+    names: ['lists', 'list-detail'],
+    badge: listsStore.pendingCount,
+  },
+  {
+    to: '/recipes',
+    label: 'Recipes',
+    icon: 'recipes',
+    names: ['recipes', 'recipe-detail', 'recipe-join'],
+    badge: recipesStore.pendingCount,
+  },
+  { to: '/exercises', label: 'Train', icon: 'dumbbell', names: ['exercises'], badge: 0 },
+  { to: '/account', label: 'Account', icon: 'user', names: ['account'], badge: 0 },
+])
 </script>
 
 <template>
-  <nav v-if="authStore.isAuthenticated" class="bottom-nav">
-    <RouterLink to="/" class="nav-item" active-class="is-active">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M4 6h1.5M4 12h1.5M4 18h1.5" stroke-linecap="round" />
-        <path d="M9 6h11M9 12h11M9 18h11" stroke-linecap="round" />
-      </svg>
-      <span class="nav-label">Lists</span>
-      <span v-if="listsStore.pendingCount > 0" class="nav-badge mono-num">{{
-        listsStore.pendingCount
-      }}</span>
-    </RouterLink>
-    <RouterLink to="/recipes" class="nav-item" active-class="is-active">
-      <svg
-        class="nav-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-      </svg>
-      <span class="nav-label">Recipes</span>
-      <span v-if="recipesStore.pendingCount > 0" class="nav-badge mono-num">{{
-        recipesStore.pendingCount
-      }}</span>
-    </RouterLink>
-    <RouterLink to="/exercises" class="nav-item" active-class="is-active">
-      <svg
-        class="nav-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect x="1" y="9" width="3" height="6" rx="1" />
-        <rect x="4.5" y="7" width="2" height="10" rx="1" />
-        <line x1="6.5" y1="12" x2="17.5" y2="12" />
-        <rect x="17.5" y="7" width="2" height="10" rx="1" />
-        <rect x="20" y="9" width="3" height="6" rx="1" />
-      </svg>
-      <span class="nav-label">Exercises</span>
-    </RouterLink>
-    <RouterLink to="/account" class="nav-item" active-class="is-active">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3.2" />
-        <path
-          d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M17.7 17.7l-1.4-1.4M7.7 7.7 6.3 6.3"
-          stroke-linecap="round"
+  <nav v-if="authStore.isAuthenticated" class="bottom-nav" aria-label="Main">
+    <RouterLink
+      v-for="tab in tabs"
+      :key="tab.to"
+      :to="tab.to"
+      class="nav-item"
+      :class="{ 'is-active': tab.names.includes(String(route.name)) }"
+    >
+      <span class="nav-icon-wrap">
+        <AppIcon
+          :name="tab.icon"
+          :size="21"
+          :stroke="tab.names.includes(String(route.name)) ? 2.3 : 1.9"
         />
-      </svg>
-      <span class="nav-label">Account</span>
+        <span v-if="tab.badge > 0" class="nav-badge mono-num">{{ tab.badge }}</span>
+      </span>
+      <span class="nav-label">{{ tab.label }}</span>
     </RouterLink>
   </nav>
 </template>
@@ -73,16 +59,20 @@ const recipesStore = useRecipesStore()
 <style scoped>
 .bottom-nav {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.65rem + var(--safe-bottom));
+  z-index: 30;
   display: flex;
-  height: calc(var(--nav-height) + var(--safe-bottom));
-  padding-bottom: var(--safe-bottom);
-  background-color: var(--c-bg-soft);
-  border-top: 1px solid var(--c-border);
-  backdrop-filter: blur(12px);
-  z-index: 20;
+  height: var(--nav-height);
+  padding: 0.35rem;
+  gap: 0.2rem;
+  background-color: var(--c-glass);
+  border: 1px solid var(--c-border-hover);
+  border-radius: 26px;
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: var(--shadow-lg);
 }
 
 .nav-item {
@@ -92,49 +82,92 @@ const recipesStore = useRecipesStore()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  border-radius: 20px;
   color: var(--c-text-soft);
   font-size: 0.68rem;
-  transition: color 0.15s ease-in-out;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition:
+    color 0.2s,
+    background-color 0.25s var(--ease-out),
+    transform 0.15s var(--ease-out);
+}
+
+.nav-item:hover {
+  color: var(--c-heading);
+}
+
+.nav-item:active {
+  transform: scale(0.94);
 }
 
 .nav-item.is-active {
-  color: var(--c-accent-strong);
+  color: var(--c-heading);
+  background-color: var(--c-accent-bg);
 }
 
-.nav-icon {
-  width: 21px;
-  height: 21px;
+.nav-item.is-active .nav-icon-wrap {
+  color: var(--c-accent-strong);
+  transform: translateY(-1px);
+}
+
+.nav-item.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 16px;
+  height: 3px;
+  border-radius: 3px;
+  background-image: var(--grad-accent);
+  animation: pop-in 0.35s var(--ease-spring);
+}
+
+@keyframes pop-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+.nav-icon-wrap {
+  position: relative;
+  display: flex;
+  transition:
+    color 0.2s,
+    transform 0.3s var(--ease-spring);
+}
+
+.nav-label {
+  line-height: 1;
+  margin-bottom: 0.25rem;
 }
 
 .nav-badge {
   position: absolute;
-  top: 0.35rem;
-  right: calc(50% - 1.35rem);
-  min-width: 16px;
-  height: 16px;
+  top: -6px;
+  right: -11px;
+  min-width: 17px;
+  height: 17px;
   padding: 0 4px;
   border-radius: 999px;
-  background-color: var(--c-accent);
-  color: var(--c-bg);
-  font-size: 0.6rem;
+  background-image: var(--grad-accent);
+  color: #fff;
+  font-size: 0.62rem;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 0 2px var(--c-bg-soft);
 }
 
 @media (min-width: 768px) {
   .bottom-nav {
     left: 50%;
     right: auto;
-    bottom: 1.25rem;
+    bottom: 1.5rem;
     transform: translateX(-50%);
-    width: min(420px, calc(100% - 2rem));
-    height: 56px;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--c-border);
-    box-shadow: var(--shadow-md);
+    width: min(440px, calc(100% - 2rem));
   }
 }
 </style>

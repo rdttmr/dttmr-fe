@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { ApiError } from '@/api/http'
 
 type Record = { id?: unknown; [key: string]: unknown }
 
@@ -66,6 +67,18 @@ function createFakeTable(autoIncrement = false) {
               const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
               for (const [key, v] of matches) store.set(key, { ...v, ...changes })
               return matches.length
+            },
+          }
+        },
+        anyOf(values: unknown[]) {
+          return {
+            async toArray() {
+              return Array.from(store.values())
+                .filter((v) => values.includes(v[field]))
+                .map((v) => ({ ...v }))
+            },
+            async count() {
+              return Array.from(store.values()).filter((v) => values.includes(v[field])).length
             },
           }
         },
@@ -493,6 +506,21 @@ describe('useListsStore', () => {
     expect(store.pendingCount).toBe(0)
   })
 
+  it("leaves the recipes store's queued operations alone instead of consuming them", async () => {
+    await fakeDb.syncQueue.add({
+      type: 'createRecipe',
+      payload: { name: 'Lasagna' },
+      localRecipeId: 'recipe-1',
+      createdAt: 1,
+      attempts: 0,
+    })
+
+    const store = useListsStore()
+    await store.sync()
+
+    expect(await fakeDb.syncQueue.toArray()).toHaveLength(1)
+  })
+
   it('does not sync before the debounce delay elapses, then syncs once it does', async () => {
     listsApiMocks.createListItemApi.mockResolvedValueOnce({
       id: 'server-item-1',
@@ -633,6 +661,114 @@ describe('useListsStore', () => {
     expect(listsApiMocks.orderListsApi).toHaveBeenCalledWith({
       list_ids: ['server-list-1', 'list-a'],
     })
+  })
+
+  it('rebases a reorder the server rejected as stale onto its current lists and resends it once', async () => {
+    // "list-c" was created on another device after this one queued its reorder.
+    listsApiMocks.getListsApi.mockResolvedValue([
+      { id: 'list-a', name: 'A', position: 1, created_at: '2024-01-01T00:00:00.000Z' },
+      { id: 'list-b', name: 'B', position: 2, created_at: '2024-01-02T00:00:00.000Z' },
+      { id: 'list-c', name: 'C', position: 0, created_at: '2024-01-03T00:00:00.000Z' },
+    ])
+    listsApiMocks.orderListsApi
+      .mockRejectedValueOnce(new ApiError('stale list ids', 400))
+      .mockResolvedValueOnce(undefined)
+
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'list-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.lists.put({ id: 'list-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderLists(['list-b', 'list-a'])
+    await store.sync()
+
+    expect(listsApiMocks.orderListsApi).toHaveBeenCalledTimes(2)
+    expect(listsApiMocks.orderListsApi).toHaveBeenNthCalledWith(1, {
+      list_ids: ['list-b', 'list-a'],
+    })
+    expect(listsApiMocks.orderListsApi).toHaveBeenNthCalledWith(2, {
+      list_ids: ['list-c', 'list-b', 'list-a'],
+    })
+    expect(await fakeDb.syncQueue.toArray()).toHaveLength(0)
+    expect(store.pendingCount).toBe(0)
+    expect(store.error).toBeNull()
+  })
+
+  it('drops a reorder the server keeps rejecting, without blocking later changes or retrying it', async () => {
+    listsApiMocks.getListsApi.mockResolvedValue([
+      { id: 'list-a', name: 'A', position: 0 },
+      { id: 'list-b', name: 'B', position: 1 },
+    ])
+    listsApiMocks.orderListsApi.mockRejectedValue(new ApiError('stale list ids', 400))
+    listsApiMocks.createListItemApi.mockResolvedValueOnce({
+      id: 'server-item-1',
+      list_id: 'list-a',
+      title: 'Milk',
+      is_completed: false,
+    })
+
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'list-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.lists.put({ id: 'list-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderLists(['list-b', 'list-a'])
+    await store.createListItem('list-a', 'Milk')
+    await store.sync()
+
+    // The reorder came first in the queue but must not stall what follows it.
+    expect(listsApiMocks.createListItemApi).toHaveBeenCalledTimes(1)
+    // The original attempt plus exactly one rebased resend, then it is dropped.
+    expect(listsApiMocks.orderListsApi).toHaveBeenCalledTimes(2)
+    expect(await fakeDb.syncQueue.toArray()).toHaveLength(0)
+    expect(store.pendingCount).toBe(0)
+    expect(store.error).toContain("Couldn't save the new list order")
+    // The abandoned optimistic order gives way to the server's.
+    expect(store.sortedLists.map((list) => list.id)).toEqual(['list-a', 'list-b'])
+    expect(store.lists.some((list) => list.pendingSync)).toBe(false)
+
+    listsApiMocks.orderListsApi.mockClear()
+    await store.sync()
+    expect(listsApiMocks.orderListsApi).not.toHaveBeenCalled()
+  })
+
+  it('retries a reorder failing for a non-rejection reason only a few times, without blocking later changes', async () => {
+    listsApiMocks.getListsApi.mockResolvedValue([
+      { id: 'list-a', name: 'A', position: 0 },
+      { id: 'list-b', name: 'B', position: 1 },
+    ])
+    listsApiMocks.orderListsApi.mockRejectedValue(new Error('Failed to fetch'))
+    listsApiMocks.createListItemApi.mockResolvedValueOnce({
+      id: 'server-item-1',
+      list_id: 'list-a',
+      title: 'Milk',
+      is_completed: false,
+    })
+
+    const store = useListsStore()
+    await fakeDb.lists.put({ id: 'list-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.lists.put({ id: 'list-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderLists(['list-b', 'list-a'])
+    await store.createListItem('list-a', 'Milk')
+
+    await store.sync()
+    expect(listsApiMocks.createListItemApi).toHaveBeenCalledTimes(1)
+    expect(store.pendingCount).toBe(1)
+    // Still waiting to be retried, so the optimistic order stays on screen.
+    expect(store.sortedLists.map((list) => list.id)).toEqual(['list-b', 'list-a'])
+
+    await store.sync()
+    expect(store.pendingCount).toBe(1)
+
+    await store.sync()
+    expect(store.pendingCount).toBe(0)
+    expect(listsApiMocks.orderListsApi).toHaveBeenCalledTimes(3)
+    expect(store.sortedLists.map((list) => list.id)).toEqual(['list-a', 'list-b'])
+
+    await store.sync()
+    expect(listsApiMocks.orderListsApi).toHaveBeenCalledTimes(3)
   })
 
   it('serializes pullListItems() behind an in-flight sync() so they never race on the same rows', async () => {

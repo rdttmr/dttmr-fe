@@ -54,6 +54,7 @@ async function handleAddUser() {
   <BaseModal
     :title="`Share &quot;${list.name}&quot;`"
     title-id="share-modal-title"
+    icon="users"
     @close="handleClose"
   >
     <p class="modal-description">Enter an email to invite them to collaborate on this list.</p>
@@ -88,9 +89,9 @@ async function handleAddUser() {
 
 <style scoped>
 .modal-description {
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--c-text-soft);
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
 }
 
 .share-form {
@@ -106,14 +107,11 @@ async function handleAddUser() {
 .share-btn {
   width: auto;
   flex-shrink: 0;
-  padding: 0.65rem 1.2rem;
+  padding: 0.65rem 1.3rem;
 }
 
-.banner-success {
-  margin-top: 0.75rem;
-}
-
+.banner-success,
 .banner-error {
-  margin-top: 0.75rem;
+  margin: 0.75rem 0 0;
 }
 </style>

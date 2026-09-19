@@ -57,7 +57,12 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <BaseModal title="Change password" title-id="change-password-modal-title" @close="handleClose">
+  <BaseModal
+    title="Change password"
+    title-id="change-password-modal-title"
+    icon="key"
+    @close="handleClose"
+  >
     <p class="modal-description">Enter your current password and choose a new one.</p>
 
     <form class="password-form" @submit.prevent="handleSubmit">
@@ -109,27 +114,23 @@ async function handleSubmit() {
 
 <style scoped>
 .modal-description {
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--c-text-soft);
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
 }
 
 .password-form {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
+  gap: 0.65rem;
 }
 
 .password-form .btn {
-  padding: 0.65rem 1.2rem;
+  margin-top: 0.35rem;
 }
 
-.banner-success {
-  margin-top: 0.75rem;
-}
-
+.banner-success,
 .banner-error {
-  margin-top: 0.75rem;
+  margin: 0.9rem 0 0;
 }
 </style>

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { ApiError } from '@/api/http'
 
 type Record = { id?: unknown; [key: string]: unknown }
 
@@ -179,6 +180,7 @@ const recipesApiMocks = vi.hoisted(() => ({
   uncheckRecipeApi: vi.fn<() => Promise<unknown>>(),
   shareRecipeApi: vi.fn<() => Promise<unknown>>(),
   joinRecipeApi: vi.fn<() => Promise<unknown>>(),
+  orderRecipesApi: vi.fn<() => Promise<unknown>>(),
 }))
 
 vi.mock('@/api/recipes', () => recipesApiMocks)
@@ -226,8 +228,13 @@ describe('useRecipesStore', () => {
   })
 
   it('creates a recipe locally, queues a sync entry, and remaps the id after a successful sync', async () => {
-    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-recipe-1', name: 'Lasagna' })
-    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([{ id: 'server-recipe-1', name: 'Lasagna' }])
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({
+      id: 'server-recipe-1',
+      name: 'Lasagna',
+    })
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'server-recipe-1', name: 'Lasagna' },
+    ])
 
     const store = useRecipesStore()
     const localRecipe = await store.createRecipe('Lasagna')
@@ -289,9 +296,10 @@ describe('useRecipesStore', () => {
       list_item_id: 'item-1',
     })
     expect(store.pendingCount).toBe(0)
-    expect(store.recipeItemLinks.find((l) => l.recipeId === 'recipe-1' && l.listItemId === 'item-1')?.pendingSync).toBe(
-      false,
-    )
+    expect(
+      store.recipeItemLinks.find((l) => l.recipeId === 'recipe-1' && l.listItemId === 'item-1')
+        ?.pendingSync,
+    ).toBe(false)
   })
 
   it('does not add a duplicate link when the item is already in the recipe', async () => {
@@ -299,9 +307,9 @@ describe('useRecipesStore', () => {
     await store.addItemToRecipe('recipe-1', 'item-1')
     await store.addItemToRecipe('recipe-1', 'item-1')
 
-    expect(store.recipeItemLinks.filter((l) => l.recipeId === 'recipe-1' && l.listItemId === 'item-1')).toHaveLength(
-      1,
-    )
+    expect(
+      store.recipeItemLinks.filter((l) => l.recipeId === 'recipe-1' && l.listItemId === 'item-1'),
+    ).toHaveLength(1)
     expect(store.pendingCount).toBe(1)
   })
 
@@ -343,7 +351,11 @@ describe('useRecipesStore', () => {
 
     const store = useRecipesStore()
     await fakeDb.recipes.put({ id: 'recipe-to-delete', name: 'Delete Me', pendingSync: false })
-    await fakeDb.recipeItems.put({ recipeId: 'recipe-to-delete', listItemId: 'item-1', pendingSync: false })
+    await fakeDb.recipeItems.put({
+      recipeId: 'recipe-to-delete',
+      listItemId: 'item-1',
+      pendingSync: false,
+    })
     await store.refresh()
 
     expect(store.recipes.find((r) => r.id === 'recipe-to-delete')).toBeDefined()
@@ -445,7 +457,11 @@ describe('useRecipesStore', () => {
   it('deletes a previously synced recipe locally when it is missing from the server', async () => {
     const store = useRecipesStore()
     await fakeDb.recipes.put({ id: 'server-recipe-1', name: 'Lasagna', pendingSync: false })
-    await fakeDb.recipeItems.put({ recipeId: 'server-recipe-1', listItemId: 'item-1', pendingSync: false })
+    await fakeDb.recipeItems.put({
+      recipeId: 'server-recipe-1',
+      listItemId: 'item-1',
+      pendingSync: false,
+    })
     await store.refresh()
 
     recipesApiMocks.getRecipesApi.mockResolvedValueOnce([])
@@ -492,8 +508,229 @@ describe('useRecipesStore', () => {
     expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-b', 'recipe-a'])
   })
 
+  it('sorts recipes by position first, falling back to newest created_at for ties', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({
+      id: 'recipe-a',
+      name: 'A',
+      position: 1,
+      created_at: '2024-01-03T00:00:00.000Z',
+      pendingSync: false,
+    })
+    await fakeDb.recipes.put({
+      id: 'recipe-b',
+      name: 'B',
+      position: 0,
+      created_at: '2024-01-01T00:00:00.000Z',
+      pendingSync: false,
+    })
+    await fakeDb.recipes.put({
+      id: 'recipe-new',
+      name: 'New',
+      position: 0,
+      created_at: '2024-01-04T00:00:00.000Z',
+      pendingSync: false,
+    })
+    await store.refresh()
+
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-new', 'recipe-b', 'recipe-a'])
+  })
+
+  it('reorders recipes optimistically and pushes the new order via the dedicated endpoint', async () => {
+    recipesApiMocks.orderRecipesApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'recipe-a', name: 'A', position: 1 },
+      { id: 'recipe-b', name: 'B', position: 0 },
+    ])
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-b', 'recipe-a'])
+    expect(store.recipes.every((r) => r.pendingSync)).toBe(true)
+    expect(store.pendingCount).toBe(1)
+
+    await store.sync()
+
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledWith({
+      recipe_ids: ['recipe-b', 'recipe-a'],
+    })
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.pendingSync).toBe(false)
+    expect(store.recipes.find((r) => r.id === 'recipe-b')?.pendingSync).toBe(false)
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('supersedes a stale queued reorder instead of replaying both', async () => {
+    recipesApiMocks.orderRecipesApi.mockResolvedValue(undefined)
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+    await store.reorderRecipes(['recipe-a', 'recipe-b'])
+    expect(store.pendingCount).toBe(1)
+
+    await store.sync()
+
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledTimes(1)
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledWith({
+      recipe_ids: ['recipe-a', 'recipe-b'],
+    })
+  })
+
+  it('keeps the optimistic order when a pull races a pending reorder', async () => {
+    recipesApiMocks.orderRecipesApi.mockRejectedValueOnce(new Error('Server down'))
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-a', name: 'A', position: 0 },
+      { id: 'recipe-b', name: 'B', position: 1 },
+    ])
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+    await store.sync()
+
+    // The reorder failed to sync, so the stale server order must not win.
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-b', 'recipe-a'])
+    expect(store.error).toBe('Server down')
+    expect(store.pendingCount).toBe(1)
+  })
+
+  it('remaps a queued reorder entry when one of its recipes gets its server id assigned mid-flight', async () => {
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-recipe-1', name: 'New' })
+    recipesApiMocks.orderRecipesApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'server-recipe-1', name: 'New', position: 0 },
+      { id: 'recipe-a', name: 'A', position: 1 },
+    ])
+
+    const store = useRecipesStore()
+    const localRecipe = await store.createRecipe('New')
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await store.refresh()
+
+    // Queues an "orderRecipes" entry referencing the not-yet-synced
+    // localRecipe.id, created after the still-pending "createRecipe" entry.
+    await store.reorderRecipes([localRecipe.id, 'recipe-a'])
+    await store.sync()
+
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledWith({
+      recipe_ids: ['server-recipe-1', 'recipe-a'],
+    })
+  })
+
+  it('rebases a reorder the server rejected as stale onto its current recipes and resends it once', async () => {
+    // "recipe-c" was created on another device after this one queued its reorder.
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-a', name: 'A', position: 1, created_at: '2024-01-01T00:00:00.000Z' },
+      { id: 'recipe-b', name: 'B', position: 2, created_at: '2024-01-02T00:00:00.000Z' },
+      { id: 'recipe-c', name: 'C', position: 0, created_at: '2024-01-03T00:00:00.000Z' },
+    ])
+    recipesApiMocks.orderRecipesApi
+      .mockRejectedValueOnce(new ApiError('stale recipe ids', 400))
+      .mockResolvedValueOnce(undefined)
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+    await store.sync()
+
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledTimes(2)
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenNthCalledWith(1, {
+      recipe_ids: ['recipe-b', 'recipe-a'],
+    })
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenNthCalledWith(2, {
+      recipe_ids: ['recipe-c', 'recipe-b', 'recipe-a'],
+    })
+    expect(await fakeDb.syncQueue.toArray()).toHaveLength(0)
+    expect(store.pendingCount).toBe(0)
+    expect(store.error).toBeNull()
+  })
+
+  it('drops a reorder the server keeps rejecting, without blocking later changes or retrying it', async () => {
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-a', name: 'A', position: 0 },
+      { id: 'recipe-b', name: 'B', position: 1 },
+    ])
+    recipesApiMocks.orderRecipesApi.mockRejectedValue(new ApiError('stale recipe ids', 400))
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-recipe-1', name: 'New' })
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+    await store.createRecipe('New')
+    await store.sync()
+
+    // The reorder came first in the queue but must not stall what follows it.
+    expect(recipesApiMocks.createRecipeApi).toHaveBeenCalledTimes(1)
+    // The original attempt plus exactly one rebased resend, then it is dropped.
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledTimes(2)
+    expect(await fakeDb.syncQueue.toArray()).toHaveLength(0)
+    expect(store.pendingCount).toBe(0)
+    expect(store.error).toContain("Couldn't save the new recipe order")
+    // The abandoned optimistic order gives way to the server's.
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-a', 'recipe-b'])
+    expect(store.recipes.some((r) => r.id.startsWith('recipe-') && r.pendingSync)).toBe(false)
+
+    recipesApiMocks.orderRecipesApi.mockClear()
+    await store.sync()
+    expect(recipesApiMocks.orderRecipesApi).not.toHaveBeenCalled()
+  })
+
+  it('retries a reorder failing for a non-rejection reason only a few times, without blocking later changes', async () => {
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-a', name: 'A', position: 0 },
+      { id: 'recipe-b', name: 'B', position: 1 },
+    ])
+    recipesApiMocks.orderRecipesApi.mockRejectedValue(new Error('Failed to fetch'))
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-recipe-1', name: 'New' })
+
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', position: 0, pendingSync: false })
+    await fakeDb.recipes.put({ id: 'recipe-b', name: 'B', position: 1, pendingSync: false })
+    await store.refresh()
+
+    await store.reorderRecipes(['recipe-b', 'recipe-a'])
+    await store.createRecipe('New')
+
+    await store.sync()
+    expect(recipesApiMocks.createRecipeApi).toHaveBeenCalledTimes(1)
+    expect(store.pendingCount).toBe(1)
+    // Still waiting to be retried, so the optimistic order stays on screen.
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-b', 'recipe-a'])
+
+    await store.sync()
+    expect(store.pendingCount).toBe(1)
+
+    await store.sync()
+    expect(store.pendingCount).toBe(0)
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledTimes(3)
+    expect(store.sortedRecipes.map((r) => r.id)).toEqual(['recipe-a', 'recipe-b'])
+
+    await store.sync()
+    expect(recipesApiMocks.orderRecipesApi).toHaveBeenCalledTimes(3)
+  })
+
   it('does not sync before the debounce delay elapses, then syncs once it does', async () => {
-    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-recipe-1', name: 'Lasagna' })
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({
+      id: 'server-recipe-1',
+      name: 'Lasagna',
+    })
 
     const store = useRecipesStore()
     await store.createRecipe('Lasagna')

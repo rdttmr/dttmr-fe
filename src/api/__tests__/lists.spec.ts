@@ -11,9 +11,11 @@ import {
   removeUserFromListApi,
   deleteListApi,
   deleteListItemApi,
+  orderListsApi,
 } from '../lists'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/auth'
+import { ApiError } from '@/api/http'
 
 describe('lists API', () => {
   const originalFetch = global.fetch
@@ -228,5 +230,36 @@ describe('lists API', () => {
     } as unknown as Response)
 
     await expect(deleteListItemApi('item-1')).rejects.toThrow('Item not found')
+  })
+
+  it('orderListsApi sends POST to /lists/order with the ordered ids', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    } as unknown as Response)
+    global.fetch = fetchMock
+
+    await orderListsApi({ list_ids: ['list-b', 'list-a'] })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE_URL}/lists/order`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ list_ids: ['list-b', 'list-a'] }),
+      }),
+    )
+  })
+
+  it('orderListsApi reports the HTTP status so callers can tell a rejection from an outage', async () => {
+    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'stale list ids' }),
+    } as unknown as Response)
+
+    const error = await orderListsApi({ list_ids: ['x'] }).catch((err: unknown) => err)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ message: 'stale list ids', status: 400 })
   })
 })

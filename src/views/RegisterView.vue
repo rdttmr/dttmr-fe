@@ -5,6 +5,7 @@ import { createUserApi } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
+import AuthShell from '@/components/AuthShell.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -58,145 +59,97 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="register-container">
-    <div class="register-card card">
-      <div class="brand-mark">
-        <span class="brand-seal"></span>
-        <span class="brand-word">dttmr</span>
+  <AuthShell>
+    <h2>Create your account</h2>
+
+    <div v-if="authStore.isAuthenticated" class="already-logged-in">
+      <p>You're already logged in as {{ authStore.email }}.</p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" @click="router.push('/')">Go to Home</button>
+        <button type="button" class="btn btn-danger" @click="authStore.logout()">Log Out</button>
       </div>
-      <h2>Create your account</h2>
-
-      <div v-if="authStore.isAuthenticated" class="already-logged-in">
-        <p>You're already logged in as {{ authStore.email }}.</p>
-        <div class="actions">
-          <button type="button" class="btn btn-secondary" @click="router.push('/')">
-            Go to Home
-          </button>
-          <button type="button" class="btn btn-danger" @click="authStore.logout()">Log Out</button>
-        </div>
-      </div>
-
-      <div v-else-if="!inviteCode" class="invalid-invite">
-        <p>This page requires a valid invite link. Ask whoever invited you for a new one.</p>
-      </div>
-
-      <form v-else @submit.prevent="handleSubmit">
-        <p class="subtitle">You've been invited to join dttmr. Set up your account below.</p>
-
-        <div v-if="error" class="error-banner banner banner-error">{{ error }}</div>
-
-        <div class="field">
-          <label for="name">Name</label>
-          <input
-            id="name"
-            v-model="name"
-            type="text"
-            placeholder="Jane Doe"
-            autocomplete="name"
-            required
-            :disabled="isSubmitting"
-          />
-        </div>
-
-        <div class="field">
-          <label for="email">Email</label>
-          <input
-            id="email"
-            v-model="email"
-            type="email"
-            placeholder="name@example.com"
-            autocomplete="email"
-            required
-            :disabled="isSubmitting"
-          />
-        </div>
-
-        <div class="field">
-          <label for="password">Password</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="At least 8 characters"
-            autocomplete="new-password"
-            required
-            :disabled="isSubmitting"
-          />
-        </div>
-
-        <div class="field">
-          <label for="confirm-password">Confirm password</label>
-          <input
-            id="confirm-password"
-            v-model="confirmPassword"
-            type="password"
-            placeholder="Repeat your password"
-            autocomplete="new-password"
-            required
-            :disabled="isSubmitting"
-          />
-        </div>
-
-        <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-          <span v-if="isSubmitting">Creating account...</span>
-          <span v-else>Create account</span>
-        </button>
-      </form>
     </div>
-  </div>
+
+    <div v-else-if="!inviteCode" class="invalid-invite">
+      <p>This page requires a valid invite link. Ask whoever invited you for a new one.</p>
+    </div>
+
+    <form v-else @submit.prevent="handleSubmit">
+      <p class="subtitle">You've been invited to join dttmr. Set up your account below.</p>
+
+      <div v-if="error" class="error-banner banner banner-error">{{ error }}</div>
+
+      <div class="field">
+        <label for="name">Name</label>
+        <input
+          id="name"
+          v-model="name"
+          type="text"
+          placeholder="Jane Doe"
+          autocomplete="name"
+          required
+          :disabled="isSubmitting"
+        />
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          v-model="email"
+          type="email"
+          placeholder="name@example.com"
+          autocomplete="email"
+          required
+          :disabled="isSubmitting"
+        />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          v-model="password"
+          type="password"
+          placeholder="At least 8 characters"
+          autocomplete="new-password"
+          required
+          :disabled="isSubmitting"
+        />
+      </div>
+
+      <div class="field">
+        <label for="confirm-password">Confirm password</label>
+        <input
+          id="confirm-password"
+          v-model="confirmPassword"
+          type="password"
+          placeholder="Repeat your password"
+          autocomplete="new-password"
+          required
+          :disabled="isSubmitting"
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary submit-btn" :disabled="isSubmitting">
+        <span v-if="isSubmitting">Creating account...</span>
+        <span v-else>Create account</span>
+      </button>
+    </form>
+  </AuthShell>
 </template>
 
 <style scoped>
-.register-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 1.5rem;
-}
-
-.register-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem 1.75rem;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-bottom: 1.5rem;
-}
-
-.brand-seal {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: var(--c-accent);
-  transform: rotate(-8deg);
-  box-shadow: 0 0 0 3px var(--c-bg-soft) inset;
-}
-
-.brand-word {
-  font-family: var(--font-stamp);
-  font-size: 1.3rem;
-  letter-spacing: 0.04em;
-  color: var(--c-heading);
-}
-
 h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1.4rem;
-  text-align: center;
+  margin: 0 0 0.35rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.035em;
 }
 
 .subtitle {
-  margin: 0 0 1.5rem;
-  font-size: 0.85rem;
+  margin: 0 0 1.4rem;
+  font-size: 0.9rem;
   color: var(--c-text-soft);
-  text-align: center;
 }
 
 .error-banner {
@@ -205,7 +158,7 @@ h2 {
 
 .already-logged-in,
 .invalid-invite {
-  text-align: center;
+  margin-top: 0.75rem;
 }
 
 .already-logged-in p,
@@ -217,16 +170,18 @@ h2 {
 .actions {
   display: flex;
   gap: 0.75rem;
-  justify-content: center;
+}
+
+.actions .btn {
+  flex: 1;
 }
 
 form .field {
-  margin-bottom: 1.1rem;
+  margin-bottom: 1rem;
 }
 
-@media (min-width: 768px) {
-  .register-card {
-    padding: 2.5rem 2.25rem;
-  }
+.submit-btn {
+  margin-top: 0.6rem;
+  padding: 0.9rem 1rem;
 }
 </style>

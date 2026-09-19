@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRecipesStore } from '@/stores/recipes'
 import type { LocalRecipe } from '@/database/db'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import AppIcon from '@/components/AppIcon.vue'
 import RecipeCard from '@/components/RecipeCard.vue'
 import ShareRecipeModal from '@/components/ShareRecipeModal.vue'
 import DeleteRecipeModal from '@/components/DeleteRecipeModal.vue'
+import { useDragReorder } from '@/composables/useDragReorder'
 
 const recipesStore = useRecipesStore()
 
@@ -30,6 +32,30 @@ const filteredRecipes = computed(() => {
   if (!query) return recipesStore.sortedRecipes
   return recipesStore.sortedRecipes.filter((recipe) => fuzzyMatch(query, recipe.name))
 })
+
+// Dragging only makes sense against the full list: while a filter is active
+// the visible rows are a subset, and the server re-assigns the order of ALL
+// recipes, so a partial order would silently shuffle the hidden ones.
+const canReorder = computed(() => !filterQuery.value)
+
+// Local, reorderable copy of what's on screen. Kept in sync with
+// filteredRecipes except while a drag is in progress, so a mid-sync-pass
+// update can't yank a row out from under the user's finger.
+const displayedRecipes = ref<LocalRecipe[]>([])
+const { draggingId, isPointerActive, dragOffsetPx, setItemRef, onPointerDown } = useDragReorder(
+  displayedRecipes,
+  (orderedIds) => {
+    void recipesStore.reorderRecipes(orderedIds)
+  },
+)
+
+watch(
+  filteredRecipes,
+  (next) => {
+    if (draggingId.value === null) displayedRecipes.value = [...next]
+  },
+  { immediate: true },
+)
 
 function handleOpenShare(recipe: LocalRecipe) {
   sharingRecipe.value = recipe
@@ -77,41 +103,71 @@ async function handleCreateRecipe() {
 
 <template>
   <main class="page">
-    <h1>Your Recipes</h1>
+    <header class="page-head">
+      <p class="eyebrow">Collections</p>
+      <h1>Recipes</h1>
+      <p v-if="recipesStore.sortedRecipes.length > 0" class="page-sub">
+        {{ recipesStore.sortedRecipes.length }}
+        {{ recipesStore.sortedRecipes.length === 1 ? 'recipe' : 'recipes' }} · reusable shopping
+        bundles
+      </p>
+    </header>
 
-    <form class="new-recipe-form" @submit.prevent="handleCreateRecipe">
+    <form class="composer" @submit.prevent="handleCreateRecipe">
       <div class="field">
+        <AppIcon name="search" class="composer-icon" />
         <input
           v-model="newRecipeName"
           type="text"
-          placeholder="New recipe name…"
+          placeholder="Search or create a recipe…"
+          aria-label="New recipe name"
           :disabled="isCreating"
         />
       </div>
       <button
         type="submit"
         class="btn btn-primary add-btn"
+        aria-label="Create recipe"
         :disabled="isCreating || !filterQuery"
       >
-        +
+        <AppIcon name="plus" :size="22" :stroke="2.4" />
       </button>
     </form>
 
     <p v-if="createError" class="banner banner-error">{{ createError }}</p>
 
-    <ul v-if="filteredRecipes.length > 0" class="recipes">
-      <li v-for="recipe in filteredRecipes" :key="recipe.clientId ?? recipe.id">
+    <TransitionGroup
+      v-if="displayedRecipes.length > 0"
+      tag="ul"
+      name="recipe-reorder"
+      class="recipes stagger"
+    >
+      <li
+        v-for="(recipe, index) in displayedRecipes"
+        :key="recipe.clientId ?? recipe.id"
+        :ref="(el) => setItemRef(recipe.id, el as Element | null)"
+        class="recipe-row"
+        :class="{ 'no-transition': isPointerActive && draggingId === recipe.id }"
+        :style="{
+          '--i': Math.min(index, 8),
+          ...(draggingId === recipe.id ? { transform: `translateY(${dragOffsetPx}px)` } : {}),
+        }"
+      >
         <RecipeCard
           :recipe="recipe"
+          :sortable="canReorder && displayedRecipes.length > 1"
+          :dragging="draggingId === recipe.id"
           @share="handleOpenShare(recipe)"
           @delete="handleOpenDelete(recipe)"
+          @handle-pointerdown="onPointerDown(recipe.id, $event)"
         />
       </li>
-    </ul>
+    </TransitionGroup>
 
     <div v-else-if="recipesStore.sortedRecipes.length === 0" class="empty-state">
-      <p>No recipes yet</p>
-      <p class="empty-hint">Create your first recipe above to get started.</p>
+      <span class="empty-icon"><AppIcon name="chef" :size="34" :stroke="1.6" /></span>
+      <p class="empty-title">No recipes yet</p>
+      <p class="empty-hint">Bundle items from your lists into a recipe you can reuse and share.</p>
     </div>
 
     <p v-else class="empty-hint">No recipes match "{{ filterQuery }}".</p>
@@ -127,50 +183,46 @@ async function handleCreateRecipe() {
 </template>
 
 <style scoped>
-h1 {
-  font-size: 1.4rem;
-  margin-bottom: 0.25rem;
-}
-
-.new-recipe-form {
-  display: flex;
-  gap: 0.6rem;
-  margin: 1rem 0;
-}
-
-.new-recipe-form .field {
-  flex: 1;
-}
-
-.add-btn {
-  width: 46px;
-  flex-shrink: 0;
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
 .recipes {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--c-text-soft);
+.recipe-row {
+  transition:
+    transform 0.22s var(--ease-out),
+    z-index 0s;
 }
 
-.empty-state p:first-child {
-  color: var(--c-heading);
-  font-weight: 500;
-  margin-bottom: 0.35rem;
+.recipe-row.no-transition {
+  transition: none;
+  z-index: 2;
+  position: relative;
 }
 
-.empty-hint {
-  font-size: 0.85rem;
+.recipe-reorder-move {
+  transition: transform 0.28s var(--ease-out);
+}
+
+.recipe-reorder-enter-active,
+.recipe-reorder-leave-active {
+  transition:
+    opacity 0.25s,
+    transform 0.25s var(--ease-out);
+}
+
+.recipe-reorder-leave-active {
+  position: absolute;
+  width: 100%;
+}
+
+.recipe-reorder-enter-from,
+.recipe-reorder-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
 }
 </style>

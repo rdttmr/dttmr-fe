@@ -1,46 +1,115 @@
-/* dttmr palette - field-ledger / stamped ink, cool slate ground, blue ink accent */
+/* dttmr design tokens - "aurora": deep ink ground, glass surfaces, violet -> blue -> cyan accent */
 :root {
-  --c-bg: #12161d;
-  --c-bg-soft: #181e27;
-  --c-bg-mute: #202632;
-  --c-bg-elevated: #262e3c;
+  --c-bg: #090a11;
+  --c-bg-soft: #12141f;
+  --c-bg-mute: #1a1d2c;
+  --c-bg-elevated: #222638;
 
-  --c-border: rgba(74, 130, 196, 0.16);
-  --c-border-hover: rgba(74, 130, 196, 0.36);
+  --c-surface: rgba(255, 255, 255, 0.045);
+  --c-surface-hover: rgba(255, 255, 255, 0.075);
+  --c-glass: rgba(18, 20, 32, 0.72);
 
-  --c-text: #aab2c0;
-  --c-text-soft: #707a8c;
-  --c-heading: #eef1f6;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-border-hover: rgba(255, 255, 255, 0.18);
 
-  --c-accent: #3d72b4;
-  --c-accent-soft: #2f5c92;
-  --c-accent-strong: #62a0e0;
-  --c-accent-bg: rgba(61, 114, 180, 0.16);
+  --c-text: #b5bacd;
+  --c-text-soft: #7f849c;
+  --c-heading: #f6f7fc;
 
-  --c-success: #6ba178;
-  --c-success-bg: rgba(107, 161, 120, 0.14);
-  --c-danger: #c1614a;
-  --c-danger-bg: rgba(193, 97, 74, 0.14);
-  --c-warning: #cf9d3f;
+  --c-accent: #7c6cff;
+  --c-accent-soft: #6252e0;
+  --c-accent-strong: #a89dff;
+  --c-accent-bg: rgba(124, 108, 255, 0.16);
+  --c-on-accent: #ffffff;
+  --c-focus: rgba(124, 108, 255, 0.45);
+
+  --c-success: #45d69a;
+  --c-success-bg: rgba(69, 214, 154, 0.13);
+  --c-danger: #ff7085;
+  --c-danger-bg: rgba(255, 112, 133, 0.13);
+  --c-danger-border: rgba(255, 112, 133, 0.38);
+  --c-warning: #ffb85c;
+  --c-warning-bg: rgba(255, 184, 92, 0.13);
+
+  --grad-accent: linear-gradient(135deg, #8f6bff 0%, #5b7dff 52%, #34c3f5 100%);
+  --grad-accent-hover: linear-gradient(135deg, #a084ff 0%, #6f8cff 52%, #52d0fa 100%);
+  --grad-text: linear-gradient(120deg, #c4b8ff 0%, #8fb0ff 55%, #7ce0ff 100%);
+
+  --glow-a: rgba(124, 108, 255, 0.24);
+  --glow-b: rgba(52, 195, 245, 0.14);
+  --glow-c: rgba(255, 110, 199, 0.09);
 
   --font-body:
-    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-stamp: 'Special Elite', var(--font-mono), monospace;
+    'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-accent: 0 8px 24px rgba(99, 102, 255, 0.35);
 
-  --nav-height: 60px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --nav-height: 64px;
+  --header-height: 60px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --c-bg: #f3f4fb;
+    --c-bg-soft: #ffffff;
+    --c-bg-mute: #eceef8;
+    --c-bg-elevated: #ffffff;
+
+    --c-surface: rgba(255, 255, 255, 0.78);
+    --c-surface-hover: rgba(255, 255, 255, 0.95);
+    --c-glass: rgba(255, 255, 255, 0.78);
+
+    --c-border: rgba(30, 34, 70, 0.09);
+    --c-border-hover: rgba(30, 34, 70, 0.2);
+
+    --c-text: #4b5069;
+    --c-text-soft: #7b8098;
+    --c-heading: #12142b;
+
+    --c-accent: #6b58f5;
+    --c-accent-soft: #5a47e0;
+    --c-accent-strong: #5843e8;
+    --c-accent-bg: rgba(107, 88, 245, 0.11);
+    --c-focus: rgba(107, 88, 245, 0.35);
+
+    --c-success: #14a870;
+    --c-success-bg: rgba(20, 168, 112, 0.11);
+    --c-danger: #e0344e;
+    --c-danger-bg: rgba(224, 52, 78, 0.09);
+    --c-danger-border: rgba(224, 52, 78, 0.35);
+    --c-warning: #c47a0a;
+    --c-warning-bg: rgba(196, 122, 10, 0.11);
+
+    --grad-text: linear-gradient(120deg, #6b4dff 0%, #3f6cff 55%, #0a9fd6 100%);
+
+    --glow-a: rgba(124, 108, 255, 0.2);
+    --glow-b: rgba(52, 195, 245, 0.18);
+    --glow-c: rgba(255, 110, 199, 0.12);
+
+    --shadow-sm: 0 1px 2px rgba(30, 34, 70, 0.06), 0 1px 1px rgba(30, 34, 70, 0.04);
+    --shadow-md: 0 12px 30px rgba(40, 44, 90, 0.14), 0 2px 6px rgba(40, 44, 90, 0.06);
+    --shadow-lg: 0 30px 70px rgba(40, 44, 90, 0.22), 0 4px 12px rgba(40, 44, 90, 0.08);
+    --shadow-accent: 0 8px 22px rgba(99, 90, 255, 0.32);
+
+    color-scheme: light;
+  }
 }
 
 *,
@@ -58,27 +127,42 @@ ol {
 
 html {
   -webkit-tap-highlight-color: transparent;
+  background-color: var(--c-bg);
 }
 
 body {
   min-height: 100vh;
   color: var(--c-text);
   background-color: var(--c-bg);
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(74, 130, 196, 0.06) 0,
-      rgba(74, 130, 196, 0.06) 1px,
-      transparent 1px,
-      transparent 28px
-    ),
-    radial-gradient(circle at 50% -10%, rgba(74, 130, 196, 0.08), transparent 55%);
   line-height: 1.55;
   font-family: var(--font-body);
   font-size: 15px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ambient aurora glow behind everything */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 38vmax at 12% 6%, var(--glow-a), transparent 70%),
+    radial-gradient(34vmax 34vmax at 92% 22%, var(--glow-b), transparent 70%),
+    radial-gradient(40vmax 40vmax at 60% 108%, var(--glow-c), transparent 70%);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2vmax, -2vmax, 0) scale(1.06);
+  }
 }
 
 h1,
@@ -89,10 +173,10 @@ h4 {
   font-weight: 600;
 }
 
-h1 {
+h1,
+h2 {
   font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.025em;
 }
 
 a {
@@ -102,21 +186,38 @@ a {
 
 button {
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input,
 textarea,
 select {
   font-family: inherit;
-  color-scheme: dark;
 }
 
 ::selection {
   background: var(--c-accent-bg);
+  color: var(--c-heading);
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-accent-strong);
+  outline-offset: 2px;
 }
 
 /* scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--c-border-hover) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
