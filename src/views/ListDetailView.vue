@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
 import type { LocalListItem } from '@/database/db'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import AppIcon from '@/components/AppIcon.vue'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
+import { hueFromString } from '@/utils/hue'
 
 const props = defineProps<{ id: string }>()
 
@@ -18,6 +20,7 @@ const itemInput = ref('')
 const isAddingItem = ref(false)
 const itemError = ref('')
 const showDeleteModal = ref(false)
+const showCompleted = ref(true)
 const {
   isOpen: isMenuOpen,
   containerRef: menuContainerRef,
@@ -63,6 +66,13 @@ const completedItems = computed(() =>
   filteredItems.value.filter((item) => item.is_completed).sort(byModifiedDesc),
 )
 
+const doneCount = computed(() => items.value.filter((item) => item.is_completed).length)
+const percent = computed(() =>
+  items.value.length > 0 ? Math.round((doneCount.value / items.value.length) * 100) : 0,
+)
+const allDone = computed(() => items.value.length > 0 && doneCount.value === items.value.length)
+const hue = computed(() => hueFromString(list.value?.name ?? ''))
+
 function handleOpenDelete() {
   isMenuOpen.value = false
   showDeleteModal.value = true
@@ -102,94 +112,144 @@ async function handleAddItem() {
 
 <template>
   <main class="page">
-    <button type="button" class="back-link" @click="router.push('/')">‹ Lists</button>
+    <button type="button" class="back-link" @click="router.push('/')">
+      <AppIcon name="chevron-left" :size="18" :stroke="2.4" />
+      Lists
+    </button>
 
     <template v-if="list">
-      <div class="list-header">
-        <h1>{{ list.name }}</h1>
+      <section
+        class="hero card menu-lift"
+        :class="{ 'is-complete': allDone }"
+        :style="{ '--hue': hue }"
+      >
+        <div class="list-header">
+          <div class="hero-text">
+            <h1>{{ list.name }}</h1>
+            <p class="hero-meta">
+              <template v-if="items.length > 0">
+                <span class="mono-num">{{ doneCount }}/{{ items.length }}</span> done
+                <span class="dot">·</span>
+                <span class="mono-num">{{ percent }}%</span>
+              </template>
+              <template v-else>Nothing here yet</template>
+            </p>
+          </div>
 
-        <div ref="menuContainerRef" class="menu-container">
-          <button
-            type="button"
-            class="menu-trigger-btn"
-            aria-label="List options"
-            aria-haspopup="true"
-            :aria-expanded="isMenuOpen"
-            title="More options"
-            @click="toggleMenu"
-          >
-            <svg class="dots-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </button>
-
-          <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
+          <div ref="menuContainerRef" class="menu-container">
             <button
               type="button"
-              class="submenu-item submenu-item-danger"
-              role="menuitem"
-              @click="handleOpenDelete"
+              class="menu-trigger-btn"
+              aria-label="List options"
+              aria-haspopup="true"
+              :aria-expanded="isMenuOpen"
+              title="More options"
+              @click="toggleMenu"
             >
-              <svg
-                class="submenu-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="3 6 5 6 21 6" />
-                <path
-                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                />
-                <line x1="10" y1="11" x2="10" y2="17" />
-                <line x1="14" y1="11" x2="14" y2="17" />
-              </svg>
-              <span>Delete list</span>
+              <AppIcon name="more" :size="18" />
             </button>
+
+            <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
+              <button
+                type="button"
+                class="submenu-item submenu-item-danger"
+                role="menuitem"
+                @click="handleOpenDelete"
+              >
+                <AppIcon name="trash" :size="16" />
+                <span>Delete list</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <p v-if="list.pendingSync" class="pending-note">This list hasn't synced to the server yet.</p>
 
-      <form class="new-item-form" @submit.prevent="handleAddItem">
+        <div
+          class="progress"
+          role="progressbar"
+          :aria-valuenow="percent"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span class="progress-fill" :style="{ width: `${percent}%` }"></span>
+        </div>
+      </section>
+
+      <p v-if="list.pendingSync" class="pending-note">
+        <AppIcon name="cloud" :size="14" /> This list hasn't synced to the server yet.
+      </p>
+
+      <form class="composer" @submit.prevent="handleAddItem">
         <div class="field">
+          <AppIcon name="search" class="composer-icon" />
           <input
             v-model="itemInput"
             type="text"
-            placeholder="Add an item…"
+            placeholder="Add an item or search…"
+            aria-label="Add an item"
             :disabled="isAddingItem"
           />
         </div>
         <button
           type="submit"
           class="btn btn-primary add-btn"
+          aria-label="Add item"
           :disabled="isAddingItem || !filterQuery"
         >
-          +
+          <AppIcon name="plus" :size="22" :stroke="2.4" />
         </button>
       </form>
 
       <p v-if="itemError" class="banner banner-error">{{ itemError }}</p>
 
-      <section v-if="pendingItems.length > 0" class="card items-card">
-        <ul class="items-list">
-          <ListItemRow v-for="item in pendingItems" :key="item.id" :item="item" />
-        </ul>
-      </section>
+      <div v-if="allDone && !filterQuery" class="all-done">
+        <span class="all-done-icon"><AppIcon name="sparkle" :size="18" /></span>
+        <div>
+          <strong>All done!</strong>
+          <span>Everything on this list is checked off.</span>
+        </div>
+      </div>
 
-      <section v-if="completedItems.length > 0" class="card items-card completed-card">
-        <h4>Completed</h4>
-        <ul class="items-list">
-          <ListItemRow v-for="item in completedItems" :key="item.id" :item="item" />
-        </ul>
-      </section>
+      <template v-if="pendingItems.length > 0">
+        <h2 class="section-label">
+          To do <span class="count">{{ pendingItems.length }}</span>
+        </h2>
+        <section class="card items-card">
+          <TransitionGroup tag="ul" name="row" class="items-list">
+            <ListItemRow v-for="item in pendingItems" :key="item.id" :item="item" />
+          </TransitionGroup>
+        </section>
+      </template>
 
-      <p v-if="items.length === 0" class="empty-hint">No items yet — add your first one above.</p>
-      <p v-else-if="filteredItems.length === 0" class="empty-hint">No items match "{{ filterQuery }}".</p>
+      <template v-if="completedItems.length > 0">
+        <button
+          type="button"
+          class="section-label section-toggle"
+          :aria-expanded="showCompleted"
+          @click="showCompleted = !showCompleted"
+        >
+          Completed <span class="count">{{ completedItems.length }}</span>
+          <AppIcon
+            name="chevron-down"
+            :size="16"
+            class="toggle-chevron"
+            :class="{ 'is-collapsed': !showCompleted }"
+          />
+        </button>
+        <section v-if="showCompleted" class="card items-card completed-card">
+          <TransitionGroup tag="ul" name="row" class="items-list">
+            <ListItemRow v-for="item in completedItems" :key="item.id" :item="item" />
+          </TransitionGroup>
+        </section>
+      </template>
+
+      <div v-if="items.length === 0" class="empty-state">
+        <span class="empty-icon"><AppIcon name="basket" :size="34" :stroke="1.7" /></span>
+        <p class="empty-title">Empty list</p>
+        <p class="empty-hint">Type above and press enter to add your first item.</p>
+      </div>
+      <p v-else-if="filteredItems.length === 0" class="empty-hint">
+        No items match "{{ filterQuery }}".
+      </p>
 
       <DeleteListModal
         v-if="showDeleteModal && list"
@@ -204,174 +264,167 @@ async function handleAddItem() {
 </template>
 
 <style scoped>
-.back-link {
-  background: none;
-  border: none;
-  color: var(--c-accent-strong);
-  font-size: 0.9rem;
-  padding: 0;
-  margin-bottom: 0.75rem;
-  cursor: pointer;
+.hero {
+  position: relative;
+  padding: 1.2rem 1.2rem 1.1rem;
+  margin-top: 0.4rem;
+  overflow: visible;
+  background-color: var(--c-bg-soft);
+  background-image:
+    radial-gradient(120% 140% at 0% 0%, hsl(var(--hue) 85% 60% / 0.22), transparent 60%),
+    radial-gradient(
+      90% 120% at 100% 100%,
+      hsl(calc(var(--hue) + 28) 85% 60% / 0.14),
+      transparent 65%
+    );
 }
 
 .list-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.list-header h1 {
-  font-size: 1.35rem;
-  margin: 0;
+.hero-text {
+  min-width: 0;
+}
+
+.hero h1 {
+  font-size: clamp(1.6rem, 6vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.hero-meta {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--c-text-soft);
+}
+
+.hero-meta .dot {
+  margin: 0 0.25rem;
+}
+
+.progress {
+  height: 7px;
+  border-radius: 7px;
+  background-color: var(--c-border);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--hue) 85% 62%),
+    hsl(calc(var(--hue) + 28) 88% 58%)
+  );
+  box-shadow: 0 0 12px hsl(var(--hue) 90% 60% / 0.6);
+  transition: width 0.7s var(--ease-out);
+}
+
+.is-complete .progress-fill {
+  background-image: linear-gradient(90deg, var(--c-success), #7be8bd);
+  box-shadow: 0 0 12px rgba(69, 214, 154, 0.6);
 }
 
 .pending-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
   font-size: 0.8rem;
   color: var(--c-warning);
-  margin-bottom: 1rem;
 }
 
-.new-item-form {
+.all-done {
   display: flex;
-  gap: 0.6rem;
-  margin: 1rem 0;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-lg);
+  background-color: var(--c-success-bg);
+  border: 1px solid rgba(69, 214, 154, 0.3);
+  color: var(--c-success);
+  font-size: 0.85rem;
+  animation: rise-in 0.5s var(--ease-out);
 }
 
-.new-item-form .field {
-  flex: 1;
+.all-done strong {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 
-.add-btn {
-  width: 46px;
-  flex-shrink: 0;
-  font-size: 1.3rem;
-  line-height: 1;
+.all-done-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background-color: var(--c-success-bg);
+}
+
+.section-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.section-toggle:hover {
+  color: var(--c-heading);
+}
+
+.toggle-chevron {
+  margin-left: auto;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.toggle-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.completed-card {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.row-enter-active,
+.row-leave-active {
+  transition:
+    opacity 0.25s,
+    transform 0.3s var(--ease-out);
+}
+
+.row-move {
+  transition: transform 0.3s var(--ease-out);
+}
+
+.row-enter-from {
+  opacity: 0;
+  transform: translateX(-14px);
+}
+
+.row-leave-active {
+  position: absolute;
+  width: calc(100% - 1rem);
+}
+
+.row-leave-to {
+  opacity: 0;
+  transform: translateX(14px);
 }
 
 .items-card {
-  padding: 0.2rem 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.completed-card h4 {
-  padding: 0.7rem 0.2rem 0;
-  font-size: 0.8rem;
-  color: var(--c-text-soft);
-}
-
-.items-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.empty-hint {
-  font-size: 0.85rem;
-  color: var(--c-text-soft);
-  text-align: center;
-  padding: 1.5rem 0;
-}
-
-.menu-container {
   position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.menu-trigger-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--c-text-soft);
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition:
-    background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out,
-    border-color 0.15s ease-in-out;
-}
-
-.menu-trigger-btn:hover,
-.menu-trigger-btn[aria-expanded='true'] {
-  background-color: var(--c-bg-mute);
-  color: var(--c-heading);
-  border-color: var(--c-border);
-}
-
-.dots-icon {
-  display: block;
-}
-
-.submenu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  min-width: 140px;
-  background-color: var(--c-bg-elevated);
-  border: 1px solid var(--c-border-hover);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  padding: 0.35rem;
-  animation: dropdownIn 0.12s ease-out;
-}
-
-.submenu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--c-heading);
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background-color 0.15s ease-in-out,
-    color 0.15s ease-in-out;
-}
-
-.submenu-item:hover {
-  background-color: var(--c-bg-mute);
-  color: var(--c-accent-strong);
-}
-
-.submenu-item-danger {
-  color: var(--c-danger);
-}
-
-.submenu-item-danger:hover {
-  background-color: var(--c-danger-bg);
-  color: var(--c-danger);
-}
-
-.submenu-icon {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
-
-@keyframes dropdownIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 </style>

@@ -27,7 +27,13 @@ function handleConfirm() {
 </script>
 
 <template>
-  <BaseModal :title="title" title-id="confirm-delete-modal-title" @close="handleClose">
+  <BaseModal
+    :title="title"
+    title-id="confirm-delete-modal-title"
+    icon="trash"
+    tone="danger"
+    @close="handleClose"
+  >
     <p class="modal-description">{{ description }}</p>
 
     <template #footer>
@@ -43,9 +49,8 @@ function handleConfirm() {
 
 <style scoped>
 .modal-description {
-  font-size: 0.85rem;
-  color: var(--c-text-soft);
-  margin-bottom: 1.25rem;
-  line-height: 1.4;
+  font-size: 0.92rem;
+  color: var(--c-text);
+  line-height: 1.55;
 }
 </style>

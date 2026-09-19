@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getInvitesApi, getInviteStatusApi, createInviteApi, deleteInviteApi } from '@/api/invites'
 import type { Invite, InviteStatusCounts } from '@/types/invite'
+import AppIcon from '@/components/AppIcon.vue'
 
 type InviteStatus = 'active' | 'used' | 'expired'
 
@@ -232,7 +233,7 @@ function inviteDetail(invite: Invite): string {
 </script>
 
 <template>
-  <section class="card info-card invites-card">
+  <section class="card invites-card">
     <button
       type="button"
       class="invites-toggle"
@@ -240,6 +241,7 @@ function inviteDetail(invite: Invite): string {
       aria-controls="invites-panel"
       @click="toggleExpanded"
     >
+      <span class="invites-toggle-icon"><AppIcon name="ticket" :size="20" /></span>
       <span class="invites-toggle-label">
         <h4>Invites</h4>
         <span v-if="statusCounts" class="invites-stats">
@@ -249,7 +251,7 @@ function inviteDetail(invite: Invite): string {
           <span class="invites-total-label">{{ totalInvites }} total</span>
         </span>
       </span>
-      <span class="chevron" :class="{ 'is-open': expanded }" aria-hidden="true">⌄</span>
+      <AppIcon name="chevron-down" class="chevron" :class="{ 'is-open': expanded }" :size="18" />
     </button>
 
     <div v-if="expanded" id="invites-panel" class="invites-body">
@@ -324,7 +326,7 @@ function inviteDetail(invite: Invite): string {
           aria-label="Previous page"
           @click="goToPage(page - 1)"
         >
-          ‹
+          <AppIcon name="chevron-left" :size="16" :stroke="2.4" />
         </button>
         <span class="pagination-info">{{ total }} invites total</span>
         <button
@@ -334,7 +336,7 @@ function inviteDetail(invite: Invite): string {
           aria-label="Next page"
           @click="goToPage(page + 1)"
         >
-          ›
+          <AppIcon name="chevron-right" :size="16" :stroke="2.4" />
         </button>
       </div>
 
@@ -346,52 +348,77 @@ function inviteDetail(invite: Invite): string {
         :disabled="isCreating"
         @click="handleCreate"
       >
-        {{ isCreating ? 'Generating…' : '+ Generate invite' }}
+        <AppIcon v-if="!isCreating" name="plus" :size="17" :stroke="2.4" />
+        {{ isCreating ? 'Generating…' : 'Generate invite' }}
       </button>
     </div>
   </section>
 </template>
 
 <style scoped>
+.invites-card {
+  padding: 0.35rem;
+  background-color: var(--c-bg-soft);
+}
+
 .invites-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.85rem;
   width: 100%;
+  padding: 0.7rem 0.75rem;
   background: none;
   border: none;
-  padding: 0;
+  border-radius: var(--radius-md);
   color: inherit;
   cursor: pointer;
   text-align: left;
+  transition: background-color 0.15s;
+}
+
+.invites-toggle:hover {
+  background-color: var(--c-surface);
+}
+
+.invites-toggle-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
 }
 
 .invites-toggle-label {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
 }
 
 .invites-toggle-label h4 {
-  font-size: 0.85rem;
+  font-size: 0.98rem;
   margin: 0;
 }
 
 .invites-stats {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   flex-wrap: wrap;
 }
 
 .invites-count-badge {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 0.15rem 0.5rem;
+  padding: 0.12rem 0.55rem;
   border-radius: 999px;
-  background-color: var(--c-accent-bg);
-  color: var(--c-accent-strong);
+  background-color: var(--c-success-bg);
+  color: var(--c-success);
 }
 
 .invites-count-badge.badge-expired {
@@ -400,18 +427,20 @@ function inviteDetail(invite: Invite): string {
 }
 
 .invites-count-badge.badge-used {
-  background-color: var(--c-bg-elevated);
+  background-color: var(--c-surface-hover);
   color: var(--c-text-soft);
 }
 
 .invites-total-label {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   color: var(--c-text-soft);
+  margin-left: 0.2rem;
 }
 
 .chevron {
+  flex-shrink: 0;
   color: var(--c-text-soft);
-  transition: transform 0.15s ease-in-out;
+  transition: transform 0.25s var(--ease-out);
 }
 
 .chevron.is-open {
@@ -421,8 +450,9 @@ function inviteDetail(invite: Invite): string {
 .invites-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.85rem;
+  gap: 0.85rem;
+  padding: 0.5rem 0.75rem 0.85rem;
+  animation: rise-in 0.3s var(--ease-out);
 }
 
 .invites-hint {
@@ -433,24 +463,28 @@ function inviteDetail(invite: Invite): string {
 
 .invites-loading,
 .invites-empty {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--c-text-soft);
   margin: 0;
+  padding: 0.5rem 0;
 }
 
 .invite-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
 }
 
+/* boarding-pass style ticket: coloured stub on the left, perforated divider */
 .invite-ticket {
+  position: relative;
   border: 1px solid var(--c-border);
-  border-left: 3px solid var(--c-text-soft);
+  border-left: 4px solid var(--c-text-soft);
   border-radius: var(--radius-md);
-  background-color: var(--c-bg-mute);
-  padding: 0.65rem 0.85rem;
+  background-color: var(--c-surface);
+  padding: 0.75rem 0.9rem;
+  transition: border-color 0.2s;
 }
 
 .invite-ticket.is-active {
@@ -463,7 +497,7 @@ function inviteDetail(invite: Invite): string {
 
 .invite-ticket.is-used {
   border-left-color: var(--c-text-soft);
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 .invite-ticket-main {
@@ -477,7 +511,8 @@ function inviteDetail(invite: Invite): string {
 .invite-code {
   font-family: var(--font-mono);
   font-size: 0.95rem;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   color: var(--c-heading);
   flex: 1 1 auto;
   min-width: 0;
@@ -495,11 +530,11 @@ function inviteDetail(invite: Invite): string {
 
 .invite-status-pill {
   flex-shrink: 0;
-  font-size: 0.65rem;
-  font-weight: 600;
+  font-size: 0.64rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.15rem 0.5rem;
+  letter-spacing: 0.06em;
+  padding: 0.16rem 0.55rem;
   border-radius: 999px;
 }
 
@@ -514,7 +549,7 @@ function inviteDetail(invite: Invite): string {
 }
 
 .pill-used {
-  background-color: var(--c-bg-elevated);
+  background-color: var(--c-surface-hover);
   color: var(--c-text-soft);
 }
 
@@ -522,15 +557,15 @@ function inviteDetail(invite: Invite): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.4rem 0.5rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  border-top: 1px dashed var(--c-border);
-  margin-top: 0.55rem;
-  padding-top: 0.5rem;
+  border-top: 1px dashed var(--c-border-hover);
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
 }
 
 .invite-detail {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: var(--c-text-soft);
   min-width: 0;
 }
@@ -543,54 +578,61 @@ function inviteDetail(invite: Invite): string {
 }
 
 .confirm-label {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: var(--c-text-soft);
 }
 
 .ticket-btn {
-  background: none;
-  border: 1px solid var(--c-border);
-  color: var(--c-text);
-  font-size: 0.72rem;
-  padding: 0.25rem 0.55rem;
-  border-radius: var(--radius-sm);
+  background-color: var(--c-surface-hover);
+  border: 1px solid transparent;
+  color: var(--c-heading);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.15s var(--ease-out);
 }
 
 .ticket-btn:hover:not(:disabled) {
-  border-color: var(--c-border-hover);
-  color: var(--c-heading);
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+}
+
+.ticket-btn:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .ticket-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .ticket-btn-danger {
   color: var(--c-danger);
-  border-color: rgba(193, 97, 74, 0.4);
 }
 
 .ticket-btn-danger:hover:not(:disabled) {
   background-color: var(--c-danger-bg);
+  color: var(--c-danger);
 }
 
 .generate-btn {
-  width: auto;
-  align-self: flex-start;
-  padding: 0.55rem 1.1rem;
+  width: 100%;
 }
 
 .invites-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
 .pagination-info {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--c-text-soft);
 }
 
@@ -598,25 +640,28 @@ function inviteDetail(invite: Invite): string {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  background: none;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text);
-  font-size: 0.85rem;
-  line-height: 1;
+  background-color: var(--c-surface-hover);
+  border: none;
+  border-radius: 50%;
+  color: var(--c-heading);
   cursor: pointer;
+  transition: background-color 0.15s;
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: var(--c-border-hover);
-  color: var(--c-heading);
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
 }
 
 .page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+}
+
+.invites-body .banner {
+  margin: 0;
 }
 </style>

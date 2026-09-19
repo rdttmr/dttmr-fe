@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
+import type { IconName } from '@/components/AppIcon.vue'
 import { useEscapeKey } from '@/composables/useEscapeKey'
 
 withDefaults(
@@ -13,10 +15,15 @@ withDefaults(
     // its content and getting clipped off-screen once that content is
     // taller than the viewport.
     scrollable?: boolean
+    // Optional glyph shown in a tinted badge next to the title.
+    icon?: IconName
+    tone?: 'default' | 'danger'
   }>(),
   {
     wide: false,
     scrollable: false,
+    icon: undefined,
+    tone: 'default',
   },
 )
 
@@ -34,16 +41,26 @@ function handleClose() {
 <template>
   <div class="modal-overlay" @click.self="handleClose">
     <div
-      class="modal-card card"
-      :class="{ 'is-wide': wide, 'is-scrollable': scrollable }"
+      class="modal-card"
+      :class="[{ 'is-wide': wide, 'is-scrollable': scrollable }, `tone-${tone}`]"
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
     >
+      <span class="sheet-grip" aria-hidden="true"></span>
+
       <div class="modal-header">
+        <span v-if="icon" class="modal-badge" aria-hidden="true">
+          <AppIcon :name="icon" :size="20" />
+        </span>
         <h3 :id="titleId">{{ title }}</h3>
-        <button type="button" class="close-btn" aria-label="Close modal" @click="handleClose">
-          ✕
+        <button
+          type="button"
+          class="close-btn icon-btn"
+          aria-label="Close modal"
+          @click="handleClose"
+        >
+          <AppIcon name="x" :size="18" />
         </button>
       </div>
 
@@ -62,35 +79,46 @@ function handleClose() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
   z-index: 100;
-  animation: fadeIn 0.15s ease-out;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background-color: rgba(6, 7, 14, 0.62);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  animation: fade-in 0.2s ease-out;
 }
 
 .modal-card {
+  position: relative;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
+  padding: 0.6rem 1.4rem calc(1.4rem + var(--safe-bottom));
   background-color: var(--c-bg-soft);
   border: 1px solid var(--c-border-hover);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem 1.4rem;
-  box-shadow: var(--shadow-md);
-  animation: slideUp 0.15s ease-out;
+  border-bottom: none;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: sheet-up 0.34s var(--ease-out);
+}
+
+.modal-card.tone-danger::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: linear-gradient(90deg, transparent, var(--c-danger), transparent);
 }
 
 .modal-card.is-wide {
-  max-width: 560px;
+  max-width: 580px;
 }
 
 .modal-card.is-scrollable {
   display: flex;
   flex-direction: column;
-  max-height: min(640px, calc(100vh - 2rem));
+  height: min(680px, 88vh);
 }
 
 /* Caps the body to the remaining card height and hands off scrolling to
@@ -106,64 +134,117 @@ function handleClose() {
   overflow: hidden;
 }
 
+.sheet-grip {
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 0 auto 0.85rem;
+  border-radius: 4px;
+  background-color: var(--c-border-hover);
+}
+
 .modal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
   flex-shrink: 0;
 }
 
 .modal-header h3 {
-  font-size: 1.1rem;
-  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.modal-badge {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+}
+
+.tone-danger .modal-badge {
+  background-color: var(--c-danger-bg);
+  color: var(--c-danger);
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  color: var(--c-text-soft);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0.2rem 0.4rem;
-  border-radius: var(--radius-sm);
-  line-height: 1;
-}
-
-.close-btn:hover {
-  color: var(--c-heading);
+  margin-right: -0.4rem;
+  background-color: var(--c-surface);
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
-  margin-top: 1rem;
+  margin-top: 1.1rem;
   flex-shrink: 0;
 }
 
+.modal-footer:empty {
+  display: none;
+}
+
 .modal-footer .btn {
+  flex: 1;
   width: auto;
-  padding: 0.5rem 1.2rem;
 }
 
-@keyframes fadeIn {
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .modal-card {
+    padding: 1.6rem 1.7rem 1.5rem;
+    border-bottom: 1px solid var(--c-border-hover);
+    border-radius: var(--radius-xl);
+    animation: modal-pop 0.3s var(--ease-out);
+  }
+
+  .modal-card.tone-danger::before {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  .sheet-grip {
+    display: none;
+  }
+
+  .modal-card.is-scrollable {
+    height: min(640px, calc(100vh - 2rem));
+  }
+
+  .modal-footer .btn {
+    flex: 0 0 auto;
+    padding: 0.65rem 1.4rem;
+  }
+}
+
+@keyframes fade-in {
   from {
     opacity: 0;
   }
-  to {
-    opacity: 1;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
   }
 }
 
-@keyframes slideUp {
+@keyframes modal-pop {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(14px) scale(0.96);
   }
 }
 </style>

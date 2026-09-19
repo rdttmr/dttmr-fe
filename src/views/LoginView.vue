@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
+import AuthShell from '@/components/AuthShell.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -46,124 +47,72 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="login-container">
-    <div class="login-card card">
-      <div class="brand-mark">
-        <span class="brand-seal"></span>
-        <span class="brand-word">dttmr</span>
+  <AuthShell>
+    <h2>Login</h2>
+    <p class="subtitle">Welcome back — sign in to pick up where you left off.</p>
+
+    <div v-if="authStore.isAuthenticated" class="already-logged-in">
+      <p>You are already logged in.</p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" @click="router.push('/')">Go to Home</button>
+        <button type="button" class="btn btn-danger" @click="authStore.logout()">Log Out</button>
       </div>
-      <h2>Login</h2>
-      <p class="subtitle">Enter your credentials to access your account</p>
-
-      <div v-if="authStore.isAuthenticated" class="already-logged-in">
-        <p>You are already logged in.</p>
-        <div class="actions">
-          <button type="button" class="btn btn-secondary" @click="router.push('/')">
-            Go to Home
-          </button>
-          <button type="button" class="btn btn-danger" @click="authStore.logout()">Log Out</button>
-        </div>
-      </div>
-
-      <form v-else @submit.prevent="handleSubmit">
-        <div v-if="localError || authStore.error" class="error-banner banner banner-error">
-          {{ localError || authStore.error }}
-        </div>
-
-        <div class="field">
-          <label for="email">Email</label>
-          <input
-            id="email"
-            v-model="email"
-            type="email"
-            placeholder="name@example.com"
-            autocomplete="email"
-            required
-            :disabled="authStore.isLoading"
-          />
-        </div>
-
-        <div class="field">
-          <label for="password">Password</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="Enter password"
-            autocomplete="current-password"
-            required
-            :disabled="authStore.isLoading"
-          />
-        </div>
-
-        <button type="submit" class="btn btn-primary" :disabled="authStore.isLoading">
-          <span v-if="authStore.isLoading">Logging in...</span>
-          <span v-else>Log In</span>
-        </button>
-      </form>
     </div>
-  </div>
+
+    <form v-else @submit.prevent="handleSubmit">
+      <div v-if="localError || authStore.error" class="error-banner banner banner-error">
+        {{ localError || authStore.error }}
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          v-model="email"
+          type="email"
+          placeholder="name@example.com"
+          autocomplete="email"
+          required
+          :disabled="authStore.isLoading"
+        />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          v-model="password"
+          type="password"
+          placeholder="Enter password"
+          autocomplete="current-password"
+          required
+          :disabled="authStore.isLoading"
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary submit-btn" :disabled="authStore.isLoading">
+        <span v-if="authStore.isLoading">Logging in...</span>
+        <span v-else>Log In</span>
+      </button>
+    </form>
+  </AuthShell>
 </template>
 
 <style scoped>
-.login-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 1.5rem;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem 1.75rem;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-bottom: 1.5rem;
-}
-
-.brand-seal {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: var(--c-accent);
-  transform: rotate(-8deg);
-  box-shadow: 0 0 0 3px var(--c-bg-soft) inset;
-}
-
-.brand-word {
-  font-family: var(--font-stamp);
-  font-size: 1.3rem;
-  letter-spacing: 0.04em;
-  color: var(--c-heading);
-}
-
 h2 {
-  margin: 0 0 0.4rem;
-  font-size: 1.4rem;
-  text-align: center;
+  margin: 0 0 0.35rem;
+  font-size: 1.7rem;
+  letter-spacing: -0.035em;
 }
 
 .subtitle {
-  margin: 0 0 1.5rem;
-  font-size: 0.85rem;
+  margin: 0 0 1.6rem;
+  font-size: 0.9rem;
   color: var(--c-text-soft);
-  text-align: center;
 }
 
 .error-banner {
   margin-bottom: 1.1rem;
-}
-
-.already-logged-in {
-  text-align: center;
 }
 
 .already-logged-in p {
@@ -174,16 +123,18 @@ h2 {
 .actions {
   display: flex;
   gap: 0.75rem;
-  justify-content: center;
+}
+
+.actions .btn {
+  flex: 1;
 }
 
 form .field {
   margin-bottom: 1.1rem;
 }
 
-@media (min-width: 768px) {
-  .login-card {
-    padding: 2.5rem 2.25rem;
-  }
+.submit-btn {
+  margin-top: 0.6rem;
+  padding: 0.9rem 1rem;
 }
 </style>

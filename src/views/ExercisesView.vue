@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getExercisesApi } from '@/api/exercises'
 import type { Exercise } from '@/types/exercise'
+import AppIcon from '@/components/AppIcon.vue'
 import ExerciseCard from '@/components/ExerciseCard.vue'
 
 const PAGE_SIZE = 20
@@ -48,20 +49,34 @@ function handleSelectExercise() {}
 
 <template>
   <main class="page">
-    <h1>Exercises</h1>
+    <header class="page-head">
+      <p class="eyebrow">Library</p>
+      <h1>Exercises</h1>
+      <p v-if="total > 0" class="page-sub">
+        <span class="mono-num">{{ total }}</span> movements to build workouts from
+      </p>
+    </header>
 
-    <p v-if="error" class="banner banner-error">{{ error }}</p>
+    <p v-if="error" class="banner banner-error exercise-error">{{ error }}</p>
 
-    <p v-if="isLoading && exercises.length === 0" class="loading-text">Loading exercises…</p>
+    <ul v-if="isLoading && exercises.length === 0" class="exercises" aria-label="Loading exercises">
+      <li v-for="n in 5" :key="n" class="skeleton" :style="{ '--i': n }"></li>
+    </ul>
 
-    <ul v-else-if="exercises.length > 0" class="exercises">
-      <li v-for="exercise in exercises" :key="exercise.id">
+    <ul v-else-if="exercises.length > 0" :key="page" class="exercises stagger">
+      <li
+        v-for="(exercise, index) in exercises"
+        :key="exercise.id"
+        :style="{ '--i': Math.min(index, 8) }"
+      >
         <ExerciseCard :exercise="exercise" @select="handleSelectExercise" />
       </li>
     </ul>
 
     <div v-else class="empty-state">
-      <p>No exercises yet</p>
+      <span class="empty-icon"><AppIcon name="dumbbell" :size="34" :stroke="1.7" /></span>
+      <p class="empty-title">No exercises yet</p>
+      <p class="empty-hint">Exercises will show up here once they're added.</p>
     </div>
 
     <div v-if="showPagination" class="pagination">
@@ -72,11 +87,9 @@ function handleSelectExercise() {}
         aria-label="Previous page"
         @click="goToPage(page - 1)"
       >
-        ‹
+        <AppIcon name="chevron-left" :size="18" :stroke="2.4" />
       </button>
-      <span class="pagination-info mono-num"
-        >Page {{ page }} of {{ totalPages }} · {{ total }} total</span
-      >
+      <span class="pagination-info mono-num">{{ page }} / {{ totalPages }}</span>
       <button
         type="button"
         class="page-btn"
@@ -84,74 +97,100 @@ function handleSelectExercise() {}
         aria-label="Next page"
         @click="goToPage(page + 1)"
       >
-        ›
+        <AppIcon name="chevron-right" :size="18" :stroke="2.4" />
       </button>
     </div>
   </main>
 </template>
 
 <style scoped>
-h1 {
-  font-size: 1.4rem;
-  margin-bottom: 1rem;
-}
-
-.loading-text,
-.empty-state {
-  color: var(--c-text-soft);
-  font-size: 0.9rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
+.exercise-error {
+  margin-top: 1rem;
 }
 
 .exercises {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 1.25rem 0 0;
+}
+
+.skeleton {
+  height: 78px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border);
+  background-color: var(--c-surface);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--c-surface-hover) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 1.4s linear infinite;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
 
 .pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
+  gap: 1rem;
+  width: fit-content;
+  margin: 1.5rem auto 0;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  background-color: var(--c-surface);
 }
 
 .pagination-info {
-  font-size: 0.78rem;
-  color: var(--c-text-soft);
+  min-width: 4.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--c-heading);
 }
 
 .page-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  background: none;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
-  color: var(--c-text);
-  font-size: 1rem;
-  line-height: 1;
+  background-color: var(--c-surface-hover);
+  border: none;
+  border-radius: 50%;
+  color: var(--c-heading);
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    transform 0.15s var(--ease-out);
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: var(--c-border-hover);
-  color: var(--c-heading);
+  background-image: var(--grad-accent);
+  color: #fff;
+}
+
+.page-btn:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 </style>

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRecipesStore } from '@/stores/recipes'
 import type { LocalRecipe } from '@/database/db'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import AppIcon from '@/components/AppIcon.vue'
 import RecipeCard from '@/components/RecipeCard.vue'
 import ShareRecipeModal from '@/components/ShareRecipeModal.vue'
 import DeleteRecipeModal from '@/components/DeleteRecipeModal.vue'
@@ -77,30 +78,45 @@ async function handleCreateRecipe() {
 
 <template>
   <main class="page">
-    <h1>Your Recipes</h1>
+    <header class="page-head">
+      <p class="eyebrow">Collections</p>
+      <h1>Recipes</h1>
+      <p v-if="recipesStore.sortedRecipes.length > 0" class="page-sub">
+        {{ recipesStore.sortedRecipes.length }}
+        {{ recipesStore.sortedRecipes.length === 1 ? 'recipe' : 'recipes' }} · reusable shopping
+        bundles
+      </p>
+    </header>
 
-    <form class="new-recipe-form" @submit.prevent="handleCreateRecipe">
+    <form class="composer" @submit.prevent="handleCreateRecipe">
       <div class="field">
+        <AppIcon name="search" class="composer-icon" />
         <input
           v-model="newRecipeName"
           type="text"
-          placeholder="New recipe name…"
+          placeholder="Search or create a recipe…"
+          aria-label="New recipe name"
           :disabled="isCreating"
         />
       </div>
       <button
         type="submit"
         class="btn btn-primary add-btn"
+        aria-label="Create recipe"
         :disabled="isCreating || !filterQuery"
       >
-        +
+        <AppIcon name="plus" :size="22" :stroke="2.4" />
       </button>
     </form>
 
     <p v-if="createError" class="banner banner-error">{{ createError }}</p>
 
-    <ul v-if="filteredRecipes.length > 0" class="recipes">
-      <li v-for="recipe in filteredRecipes" :key="recipe.clientId ?? recipe.id">
+    <ul v-if="filteredRecipes.length > 0" class="recipes stagger">
+      <li
+        v-for="(recipe, index) in filteredRecipes"
+        :key="recipe.clientId ?? recipe.id"
+        :style="{ '--i': Math.min(index, 8) }"
+      >
         <RecipeCard
           :recipe="recipe"
           @share="handleOpenShare(recipe)"
@@ -110,8 +126,9 @@ async function handleCreateRecipe() {
     </ul>
 
     <div v-else-if="recipesStore.sortedRecipes.length === 0" class="empty-state">
-      <p>No recipes yet</p>
-      <p class="empty-hint">Create your first recipe above to get started.</p>
+      <span class="empty-icon"><AppIcon name="chef" :size="34" :stroke="1.6" /></span>
+      <p class="empty-title">No recipes yet</p>
+      <p class="empty-hint">Bundle items from your lists into a recipe you can reuse and share.</p>
     </div>
 
     <p v-else class="empty-hint">No recipes match "{{ filterQuery }}".</p>
@@ -127,50 +144,12 @@ async function handleCreateRecipe() {
 </template>
 
 <style scoped>
-h1 {
-  font-size: 1.4rem;
-  margin-bottom: 0.25rem;
-}
-
-.new-recipe-form {
-  display: flex;
-  gap: 0.6rem;
-  margin: 1rem 0;
-}
-
-.new-recipe-form .field {
-  flex: 1;
-}
-
-.add-btn {
-  width: 46px;
-  flex-shrink: 0;
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
 .recipes {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
   list-style: none;
   padding: 0;
   margin: 0;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--c-text-soft);
-}
-
-.empty-state p:first-child {
-  color: var(--c-heading);
-  font-weight: 500;
-  margin-bottom: 0.35rem;
-}
-
-.empty-hint {
-  font-size: 0.85rem;
 }
 </style>

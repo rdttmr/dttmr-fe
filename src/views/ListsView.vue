@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useListsStore } from '@/stores/lists'
 import type { LocalList } from '@/database/db'
 import ListCard from '@/components/ListCard.vue'
+import AppIcon from '@/components/AppIcon.vue'
 import ShareListModal from '@/components/ShareListModal.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
 import { useListDragReorder } from '@/composables/useListDragReorder'
@@ -33,6 +34,14 @@ watch(
     if (draggingId.value === null) displayedLists.value = [...next]
   },
   { immediate: true },
+)
+
+const totalLists = computed(() => displayedLists.value.length)
+const openTasks = computed(() =>
+  displayedLists.value.reduce(
+    (sum, list) => sum + Math.max(0, (list.total_items ?? 0) - (list.completed_items ?? 0)),
+    0,
+  ),
 )
 
 onMounted(() => {
@@ -85,36 +94,54 @@ async function handleCreateList() {
 
 <template>
   <main class="page">
-    <h1>Your Lists</h1>
+    <header class="page-head">
+      <p class="eyebrow">Overview</p>
+      <h1>Your lists</h1>
+      <p v-if="totalLists > 0" class="page-sub">
+        {{ totalLists }} {{ totalLists === 1 ? 'list' : 'lists' }} ·
+        <span class="mono-num">{{ openTasks }}</span> open {{ openTasks === 1 ? 'item' : 'items' }}
+      </p>
+    </header>
 
-    <form class="new-list-form" @submit.prevent="handleCreateList">
+    <form class="composer" @submit.prevent="handleCreateList">
       <div class="field">
+        <AppIcon name="sparkle" class="composer-icon" />
         <input
           v-model="newListName"
           type="text"
-          placeholder="New list name…"
+          placeholder="Name a new list…"
+          aria-label="New list name"
           :disabled="isCreating"
         />
       </div>
       <button
         type="submit"
         class="btn btn-primary add-btn"
+        aria-label="Create list"
         :disabled="isCreating || !newListName.trim()"
       >
-        +
+        <AppIcon name="plus" :size="22" :stroke="2.4" />
       </button>
     </form>
 
     <p v-if="createError" class="banner banner-error">{{ createError }}</p>
 
-    <TransitionGroup v-if="displayedLists.length > 0" tag="ul" name="list-reorder" class="lists">
+    <TransitionGroup
+      v-if="displayedLists.length > 0"
+      tag="ul"
+      name="list-reorder"
+      class="lists stagger"
+    >
       <li
-        v-for="list in displayedLists"
+        v-for="(list, index) in displayedLists"
         :key="list.clientId ?? list.id"
         :ref="(el) => setItemRef(list.id, el as Element | null)"
         class="list-row"
         :class="{ 'no-transition': isPointerActive && draggingId === list.id }"
-        :style="draggingId === list.id ? { transform: `translateY(${dragOffsetPx}px)` } : undefined"
+        :style="{
+          '--i': Math.min(index, 8),
+          ...(draggingId === list.id ? { transform: `translateY(${dragOffsetPx}px)` } : {}),
+        }"
       >
         <ListCard
           :list="list"
@@ -127,8 +154,9 @@ async function handleCreateList() {
     </TransitionGroup>
 
     <div v-else class="empty-state">
-      <p>No lists yet</p>
-      <p class="empty-hint">Create your first list above to get started.</p>
+      <span class="empty-icon"><AppIcon name="list" :size="34" :stroke="1.7" /></span>
+      <p class="empty-title">No lists yet</p>
+      <p class="empty-hint">Name your first list above and start ticking things off.</p>
     </div>
 
     <ShareListModal v-if="sharingList" :list="sharingList" @close="handleCloseShare" />
@@ -142,38 +170,10 @@ async function handleCreateList() {
 </template>
 
 <style scoped>
-h1 {
-  font-size: 1.4rem;
-  margin-bottom: 0.25rem;
-}
-
-.subtitle {
-  font-size: 0.85rem;
-  color: var(--c-text-soft);
-  margin-bottom: 1.25rem;
-}
-
-.new-list-form {
-  display: flex;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.new-list-form .field {
-  flex: 1;
-}
-
-.add-btn {
-  width: 46px;
-  flex-shrink: 0;
-  font-size: 1.3rem;
-  line-height: 1;
-}
-
 .lists {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -181,7 +181,7 @@ h1 {
 
 .list-row {
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s var(--ease-out),
     z-index 0s;
 }
 
@@ -192,22 +192,24 @@ h1 {
 }
 
 .list-reorder-move {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.28s var(--ease-out);
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--c-text-soft);
+.list-reorder-enter-active,
+.list-reorder-leave-active {
+  transition:
+    opacity 0.25s,
+    transform 0.25s var(--ease-out);
 }
 
-.empty-state p:first-child {
-  color: var(--c-heading);
-  font-weight: 500;
-  margin-bottom: 0.35rem;
+.list-reorder-leave-active {
+  position: absolute;
+  width: 100%;
 }
 
-.empty-hint {
-  font-size: 0.85rem;
+.list-reorder-enter-from,
+.list-reorder-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
 }
 </style>

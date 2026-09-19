@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRecipesStore } from '@/stores/recipes'
+import AuthShell from '@/components/AuthShell.vue'
+import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,27 +43,27 @@ async function attemptJoin() {
 </script>
 
 <template>
-  <div class="join-container">
-    <div class="join-card card">
-      <div class="brand-mark">
-        <span class="brand-seal"></span>
-        <span class="brand-word">dttmr</span>
-      </div>
-
+  <AuthShell>
+    <div class="join-body">
       <template v-if="status === 'invalid'">
+        <span class="status-icon is-error"><AppIcon name="link" :size="26" /></span>
         <h2>Invalid link</h2>
-        <p class="subtitle">This link is missing a share code. Ask whoever shared it for a new one.</p>
+        <p class="subtitle">
+          This link is missing a share code. Ask whoever shared it for a new one.
+        </p>
         <button type="button" class="btn btn-secondary" @click="router.push('/recipes')">
           Go to Recipes
         </button>
       </template>
 
       <template v-else-if="status === 'joining'">
+        <span class="status-icon"><span class="spinner"></span></span>
         <h2>Joining recipe…</h2>
         <p class="subtitle">Hang on a moment.</p>
       </template>
 
       <template v-else>
+        <span class="status-icon is-error"><AppIcon name="alert" :size="26" /></span>
         <h2>Couldn't join recipe</h2>
         <p v-if="error" class="banner banner-error">{{ error }}</p>
         <div class="actions">
@@ -72,73 +74,77 @@ async function attemptJoin() {
         </div>
       </template>
     </div>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.join-container {
-  flex: 1;
+.join-body {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 100vh;
-  padding: 1.5rem;
-}
-
-.join-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem 1.75rem;
   text-align: center;
 }
 
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-bottom: 1.5rem;
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 1.1rem;
+  border-radius: 20px;
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
 }
 
-.brand-seal {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: var(--c-accent);
-  transform: rotate(-8deg);
-  box-shadow: 0 0 0 3px var(--c-bg-soft) inset;
+.status-icon.is-error {
+  background-color: var(--c-danger-bg);
+  color: var(--c-danger);
 }
 
-.brand-word {
-  font-family: var(--font-stamp);
-  font-size: 1.3rem;
-  letter-spacing: 0.04em;
-  color: var(--c-heading);
+.spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--c-border-hover);
+  border-top-color: var(--c-accent-strong);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 h2 {
   margin: 0 0 0.4rem;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.03em;
 }
 
 .subtitle {
   margin: 0 0 1.5rem;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--c-text-soft);
 }
 
 .banner-error {
   margin-bottom: 1.25rem;
   text-align: left;
+  width: 100%;
 }
 
 .actions {
   display: flex;
   gap: 0.75rem;
-  justify-content: center;
+  width: 100%;
 }
 
 .actions .btn {
-  width: auto;
+  flex: 1;
+}
+
+.join-body > .btn {
+  width: 100%;
 }
 </style>
