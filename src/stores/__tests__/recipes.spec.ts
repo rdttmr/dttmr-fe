@@ -173,6 +173,7 @@ vi.mock('@/database/db', () => ({
 const recipesApiMocks = vi.hoisted(() => ({
   getRecipesApi: vi.fn<() => Promise<unknown>>(),
   createRecipeApi: vi.fn<() => Promise<unknown>>(),
+  renameRecipeApi: vi.fn<() => Promise<unknown>>(),
   getRecipeItemsApi: vi.fn<() => Promise<unknown>>(),
   deleteRecipeApi: vi.fn<() => Promise<unknown>>(),
   addListItemToRecipeApi: vi.fn<() => Promise<unknown>>(),
@@ -225,6 +226,27 @@ describe('useRecipesStore', () => {
   afterEach(() => {
     vi.useRealTimers()
     localStorage.clear()
+  })
+
+  it('renames a recipe created offline against its server id once the create has synced', async () => {
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-r-1', name: 'Pancakes' })
+    recipesApiMocks.renameRecipeApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipesApi.mockResolvedValue([{ id: 'server-r-1', name: 'Fluffy pancakes' }])
+
+    const store = useRecipesStore()
+    const local = await store.createRecipe('Pancakes')
+    await store.renameRecipe(local.id, 'Fluffy pancakes')
+    expect(store.recipes.find((entry) => entry.id === local.id)?.name).toBe('Fluffy pancakes')
+
+    await store.sync()
+
+    expect(recipesApiMocks.renameRecipeApi).toHaveBeenCalledWith('server-r-1', {
+      name: 'Fluffy pancakes',
+    })
+    const renamed = store.recipes.find((entry) => entry.id === 'server-r-1')
+    expect(renamed?.name).toBe('Fluffy pancakes')
+    expect(renamed?.pendingSync).toBe(false)
+    expect(store.pendingCount).toBe(0)
   })
 
   it('creates a recipe locally, queues a sync entry, and remaps the id after a successful sync', async () => {

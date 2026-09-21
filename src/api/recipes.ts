@@ -3,6 +3,7 @@ import { ApiError, extractErrorMessage } from '@/api/http'
 import type {
   Recipe,
   CreateRecipePayload,
+  SetRecipeNamePayload,
   AddListItemToRecipePayload,
   RemoveListItemFromRecipePayload,
   OrderRecipesPayload,
@@ -24,6 +25,16 @@ export async function createRecipeApi(payload: CreateRecipePayload): Promise<Rec
     throw new Error(await extractErrorMessage(response, 'Failed to create recipe'))
   }
   return response.json()
+}
+
+export async function renameRecipeApi(
+  recipeId: string,
+  payload: SetRecipeNamePayload,
+): Promise<void> {
+  const response = await apiClient.post(`/recipes/${recipeId}/name`, payload)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to rename recipe'))
+  }
 }
 
 export async function getRecipeItemsApi(recipeId: string): Promise<ListItem[]> {

@@ -10,6 +10,10 @@ export interface CreateRecipePayload {
   name: string
 }
 
+export interface SetRecipeNamePayload {
+  name: string
+}
+
 export interface AddListItemToRecipePayload {
   recipe_id: string
   list_item_id: string

@@ -14,6 +14,7 @@ import type { LocalListItem } from '@/database/db'
 import {
   getRecipesApi,
   createRecipeApi,
+  renameRecipeApi,
   getRecipeItemsApi,
   deleteRecipeApi,
   addListItemToRecipeApi,
@@ -32,6 +33,7 @@ const SYNC_DEBOUNCE_MS = 400
 
 const RECIPE_OP_TYPES: SyncOperationType[] = [
   'createRecipe',
+  'renameRecipe',
   'addRecipeItem',
   'removeRecipeItem',
   'deleteRecipe',
@@ -190,6 +192,23 @@ export const useRecipesStore = defineStore('recipes', () => {
     scheduleSync()
 
     return localRecipe
+  }
+
+  async function renameRecipe(recipeId: string, name: string) {
+    const patch = {
+      name,
+      modified_at: new Date().toISOString(),
+      pendingSync: true,
+    }
+    await db.recipes.update(recipeId, patch)
+    const existingRecipe = recipes.value.find((entry) => entry.id === recipeId)
+    if (existingRecipe) Object.assign(existingRecipe, patch)
+    await enqueue({
+      type: 'renameRecipe',
+      payload: { name },
+      localRecipeId: recipeId,
+    })
+    scheduleSync()
   }
 
   async function deleteRecipe(recipeId: string) {
@@ -422,6 +441,14 @@ export const useRecipesStore = defineStore('recipes', () => {
         if (entry.localRecipeId) {
           await remapRecipeId(entry.localRecipeId, created.id)
         }
+        break
+      }
+      case 'renameRecipe': {
+        if (!entry.localRecipeId) break
+        await renameRecipeApi(entry.localRecipeId, entry.payload)
+        await db.recipes.update(entry.localRecipeId, { pendingSync: false })
+        const existingRecipe = recipes.value.find((r) => r.id === entry.localRecipeId)
+        if (existingRecipe) existingRecipe.pendingSync = false
         break
       }
       case 'addRecipeItem': {
@@ -709,6 +736,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     loadRecipeItems,
     refresh,
     createRecipe,
+    renameRecipe,
     deleteRecipe,
     reorderRecipes,
     addItemToRecipe,
