@@ -125,6 +125,18 @@ export const useRecipesStore = defineStore('recipes', () => {
     if (idx !== -1) recipeItemLinks.value.splice(idx, 1)
   }
 
+  // Keeps the server-provided `total_items` (what the overview shows before a
+  // recipe's items have been pulled) in step with local membership edits.
+  // Rows that never received a count (created before the field existed) are
+  // left alone; the card falls back to counting local links for those.
+  async function adjustTotalItems(recipeId: string, delta: number) {
+    const recipe = recipes.value.find((entry) => entry.id === recipeId)
+    if (!recipe || recipe.total_items === undefined) return
+    const next = Math.max(0, recipe.total_items + delta)
+    recipe.total_items = next
+    await db.recipes.update(recipeId, { total_items: next })
+  }
+
   async function refresh() {
     recipes.value = await db.recipes.toArray()
     recipeItemLinks.value = await db.recipeItems.toArray()
@@ -179,6 +191,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       name,
       created_at: now,
       modified_at: now,
+      total_items: 0,
       pendingSync: true,
     }
 
@@ -265,6 +278,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     const link: RecipeItemLink = { recipeId, listItemId, pendingSync: true }
     await db.recipeItems.put(link)
     upsertLink(link)
+    await adjustTotalItems(recipeId, 1)
     await enqueue({
       type: 'addRecipeItem',
       payload: { recipe_id: recipeId, list_item_id: listItemId },
@@ -275,8 +289,10 @@ export const useRecipesStore = defineStore('recipes', () => {
   }
 
   async function removeItemFromRecipe(recipeId: string, listItemId: string) {
+    const wasLinked = isItemInRecipe(recipeId, listItemId)
     await db.recipeItems.delete([recipeId, listItemId])
     removeLocalLink(recipeId, listItemId)
+    if (wasLinked) await adjustTotalItems(recipeId, -1)
 
     // If the "add" for this exact pair hasn't synced yet, cancel it outright
     // instead of round-tripping an add-then-remove through the server (same
@@ -311,7 +327,10 @@ export const useRecipesStore = defineStore('recipes', () => {
     const links = await db.recipeItems.where('listItemId').equals(listItemId).toArray()
     if (links.length === 0) return
     await db.recipeItems.where('listItemId').equals(listItemId).delete()
-    for (const link of links) removeLocalLink(link.recipeId, link.listItemId)
+    for (const link of links) {
+      removeLocalLink(link.recipeId, link.listItemId)
+      await adjustTotalItems(link.recipeId, -1)
+    }
   }
 
   // Unchecks every item currently linked to the recipe, optimistically and
@@ -626,14 +645,25 @@ export const useRecipesStore = defineStore('recipes', () => {
         db.recipes.toArray(),
       ])
       const localById = new Map(localRecipes.map((recipe) => [recipe.id, recipe]))
+      // A recipe with unsynced membership edits keeps its locally adjusted
+      // count; the server's number doesn't include those edits yet.
+      const membershipEdits = await db.syncQueue
+        .where('type')
+        .anyOf(['addRecipeItem', 'removeRecipeItem'])
+        .toArray()
+      const recipesWithPendingEdits = new Set(membershipEdits.map((entry) => entry.localRecipeId))
       const serverRecipeIds = new Set(serverRecipes.map((recipe) => recipe.id))
 
       const toPut: LocalRecipe[] = []
       for (const serverRecipe of serverRecipes) {
         const existingRecipe = localById.get(serverRecipe.id)
         if (!existingRecipe || !existingRecipe.pendingSync) {
+          const keepLocalCount =
+            existingRecipe?.total_items !== undefined &&
+            recipesWithPendingEdits.has(serverRecipe.id)
           toPut.push({
             ...serverRecipe,
+            ...(keepLocalCount ? { total_items: existingRecipe.total_items } : {}),
             pendingSync: false,
             clientId: existingRecipe?.clientId ?? serverRecipe.id,
           })
@@ -706,6 +736,12 @@ export const useRecipesStore = defineStore('recipes', () => {
         )
         for (const link of linksToDelete) removeLocalLink(link.recipeId, link.listItemId)
       }
+
+      // Now that membership is fully local, it is the better source for the count.
+      const total = await db.recipeItems.where('recipeId').equals(recipeId).count()
+      await db.recipes.update(recipeId, { total_items: total })
+      const recipe = recipes.value.find((entry) => entry.id === recipeId)
+      if (recipe) recipe.total_items = total
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load recipe items from server'
     }

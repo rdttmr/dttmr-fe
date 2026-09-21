@@ -142,6 +142,9 @@ function createFakeLinkTable() {
                 .filter((v) => v[field] === value)
                 .map((v) => ({ ...v }))
             },
+            async count() {
+              return Array.from(store.values()).filter((v) => v[field] === value).length
+            },
             async delete() {
               const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
               for (const [key] of matches) store.delete(key)
@@ -509,6 +512,59 @@ describe('useRecipesStore', () => {
     const stillLocal = store.recipes.find((r) => r.id === localRecipe.id)
     expect(stillLocal?.name).toBe('Local only')
     expect(stillLocal?.pendingSync).toBe(true)
+  })
+
+  it('stores total_items from the server when pulling recipes', async () => {
+    const store = useRecipesStore()
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'recipe-a', name: 'A', total_items: 3 },
+    ])
+
+    await store.pullRecipesFromServer()
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+    expect((await fakeDb.recipes.get('recipe-a'))?.total_items).toBe(3)
+  })
+
+  it('adjusts total_items when items are added to or removed from a recipe', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 2, pendingSync: false })
+    await store.refresh()
+
+    await store.addItemToRecipe('recipe-a', 'item-1')
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+
+    await store.removeItemFromRecipe('recipe-a', 'item-1')
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(2)
+    expect((await fakeDb.recipes.get('recipe-a'))?.total_items).toBe(2)
+  })
+
+  it('keeps the local total_items while membership edits are still queued', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 2, pendingSync: false })
+    await store.refresh()
+    await store.addItemToRecipe('recipe-a', 'item-1')
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'recipe-a', name: 'A', total_items: 2 },
+    ])
+
+    await store.pullRecipesFromServer()
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+  })
+
+  it('sets total_items from the pulled membership once a recipe is opened', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 9, pendingSync: false })
+    await store.refresh()
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValueOnce([
+      { id: 'item-1', list_id: 'list-1', title: 'Flour', is_completed: false },
+      { id: 'item-2', list_id: 'list-1', title: 'Eggs', is_completed: false },
+    ])
+
+    await store.pullRecipeItems('recipe-a')
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(2)
   })
 
   it('sorts recipes by newest created_at first', async () => {
