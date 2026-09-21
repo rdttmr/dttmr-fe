@@ -20,7 +20,12 @@ const emit = defineEmits<{
 const recipesStore = useRecipesStore()
 
 const hue = computed(() => hueFromString(props.recipe.name))
-const itemCount = computed(() => recipesStore.itemsForRecipe(props.recipe.id).length)
+// Prefer the server-provided total: local links only exist for recipes whose
+// items have been opened. Recipes cached before `total_items` existed fall
+// back to counting local links.
+const itemCount = computed(
+  () => props.recipe.total_items ?? recipesStore.itemsForRecipe(props.recipe.id).length,
+)
 
 const {
   isOpen: isMenuOpen,

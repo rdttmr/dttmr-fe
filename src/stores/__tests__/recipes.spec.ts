@@ -142,6 +142,9 @@ function createFakeLinkTable() {
                 .filter((v) => v[field] === value)
                 .map((v) => ({ ...v }))
             },
+            async count() {
+              return Array.from(store.values()).filter((v) => v[field] === value).length
+            },
             async delete() {
               const matches = Array.from(store.entries()).filter(([, v]) => v[field] === value)
               for (const [key] of matches) store.delete(key)
@@ -173,6 +176,7 @@ vi.mock('@/database/db', () => ({
 const recipesApiMocks = vi.hoisted(() => ({
   getRecipesApi: vi.fn<() => Promise<unknown>>(),
   createRecipeApi: vi.fn<() => Promise<unknown>>(),
+  renameRecipeApi: vi.fn<() => Promise<unknown>>(),
   getRecipeItemsApi: vi.fn<() => Promise<unknown>>(),
   deleteRecipeApi: vi.fn<() => Promise<unknown>>(),
   addListItemToRecipeApi: vi.fn<() => Promise<unknown>>(),
@@ -225,6 +229,27 @@ describe('useRecipesStore', () => {
   afterEach(() => {
     vi.useRealTimers()
     localStorage.clear()
+  })
+
+  it('renames a recipe created offline against its server id once the create has synced', async () => {
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-r-1', name: 'Pancakes' })
+    recipesApiMocks.renameRecipeApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipesApi.mockResolvedValue([{ id: 'server-r-1', name: 'Fluffy pancakes' }])
+
+    const store = useRecipesStore()
+    const local = await store.createRecipe('Pancakes')
+    await store.renameRecipe(local.id, 'Fluffy pancakes')
+    expect(store.recipes.find((entry) => entry.id === local.id)?.name).toBe('Fluffy pancakes')
+
+    await store.sync()
+
+    expect(recipesApiMocks.renameRecipeApi).toHaveBeenCalledWith('server-r-1', {
+      name: 'Fluffy pancakes',
+    })
+    const renamed = store.recipes.find((entry) => entry.id === 'server-r-1')
+    expect(renamed?.name).toBe('Fluffy pancakes')
+    expect(renamed?.pendingSync).toBe(false)
+    expect(store.pendingCount).toBe(0)
   })
 
   it('creates a recipe locally, queues a sync entry, and remaps the id after a successful sync', async () => {
@@ -487,6 +512,59 @@ describe('useRecipesStore', () => {
     const stillLocal = store.recipes.find((r) => r.id === localRecipe.id)
     expect(stillLocal?.name).toBe('Local only')
     expect(stillLocal?.pendingSync).toBe(true)
+  })
+
+  it('stores total_items from the server when pulling recipes', async () => {
+    const store = useRecipesStore()
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'recipe-a', name: 'A', total_items: 3 },
+    ])
+
+    await store.pullRecipesFromServer()
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+    expect((await fakeDb.recipes.get('recipe-a'))?.total_items).toBe(3)
+  })
+
+  it('adjusts total_items when items are added to or removed from a recipe', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 2, pendingSync: false })
+    await store.refresh()
+
+    await store.addItemToRecipe('recipe-a', 'item-1')
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+
+    await store.removeItemFromRecipe('recipe-a', 'item-1')
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(2)
+    expect((await fakeDb.recipes.get('recipe-a'))?.total_items).toBe(2)
+  })
+
+  it('keeps the local total_items while membership edits are still queued', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 2, pendingSync: false })
+    await store.refresh()
+    await store.addItemToRecipe('recipe-a', 'item-1')
+    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([
+      { id: 'recipe-a', name: 'A', total_items: 2 },
+    ])
+
+    await store.pullRecipesFromServer()
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(3)
+  })
+
+  it('sets total_items from the pulled membership once a recipe is opened', async () => {
+    const store = useRecipesStore()
+    await fakeDb.recipes.put({ id: 'recipe-a', name: 'A', total_items: 9, pendingSync: false })
+    await store.refresh()
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValueOnce([
+      { id: 'item-1', list_id: 'list-1', title: 'Flour', is_completed: false },
+      { id: 'item-2', list_id: 'list-1', title: 'Eggs', is_completed: false },
+    ])
+
+    await store.pullRecipeItems('recipe-a')
+
+    expect(store.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(2)
   })
 
   it('sorts recipes by newest created_at first', async () => {

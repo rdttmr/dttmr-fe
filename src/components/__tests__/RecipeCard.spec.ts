@@ -95,6 +95,30 @@ describe('RecipeCard', () => {
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
   })
 
+  it('shows the server-provided item count without any local items', () => {
+    const wrapper = mount(RecipeCard, {
+      props: { recipe: { ...sampleRecipe, total_items: 4 } },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+
+    expect(wrapper.find('.meta').text()).toContain('4 ingredients')
+  })
+
+  it('uses the singular form for a single item and "No items yet" for zero', () => {
+    const one = mount(RecipeCard, {
+      props: { recipe: { ...sampleRecipe, total_items: 1 } },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+    const none = mount(RecipeCard, {
+      props: { recipe: { ...sampleRecipe, total_items: 0 } },
+      global: { stubs: { RouterLink: routerLinkStub } },
+    })
+
+    expect(one.find('.meta').text()).toContain('1 ingredient')
+    expect(one.find('.meta').text()).not.toContain('ingredients')
+    expect(none.find('.meta').text()).toContain('No items yet')
+  })
+
   it('shows a pending indicator while the recipe has not synced yet', () => {
     const wrapper = mount(RecipeCard, {
       props: {

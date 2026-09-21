@@ -7,6 +7,7 @@ import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import AppIcon from '@/components/AppIcon.vue'
 import ListItemRow from '@/components/ListItemRow.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
+import RenameModal from '@/components/RenameModal.vue'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
 import { hueFromString } from '@/utils/hue'
 
@@ -20,6 +21,7 @@ const itemInput = ref('')
 const isAddingItem = ref(false)
 const itemError = ref('')
 const showDeleteModal = ref(false)
+const showRenameModal = ref(false)
 const showCompleted = ref(true)
 const {
   isOpen: isMenuOpen,
@@ -72,6 +74,21 @@ const percent = computed(() =>
 )
 const allDone = computed(() => items.value.length > 0 && doneCount.value === items.value.length)
 const hue = computed(() => hueFromString(list.value?.name ?? ''))
+
+function handleOpenRename() {
+  isMenuOpen.value = false
+  showRenameModal.value = true
+}
+
+async function handleRename(name: string) {
+  if (!list.value) return
+  showRenameModal.value = false
+  try {
+    await listsStore.renameList(list.value.id, name)
+  } catch (err) {
+    itemError.value = err instanceof Error ? err.message : 'Failed to rename list'
+  }
+}
 
 function handleOpenDelete() {
   isMenuOpen.value = false
@@ -150,6 +167,10 @@ async function handleAddItem() {
             </button>
 
             <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
+              <button type="button" class="submenu-item" role="menuitem" @click="handleOpenRename">
+                <AppIcon name="edit" :size="16" />
+                <span>Rename list</span>
+              </button>
               <button
                 type="button"
                 class="submenu-item submenu-item-danger"
@@ -251,6 +272,13 @@ async function handleAddItem() {
         No items match "{{ filterQuery }}".
       </p>
 
+      <RenameModal
+        v-if="showRenameModal"
+        kind="list"
+        :current-name="list.name"
+        @close="showRenameModal = false"
+        @save="handleRename"
+      />
       <DeleteListModal
         v-if="showDeleteModal && list"
         :list="list"

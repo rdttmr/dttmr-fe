@@ -6,11 +6,13 @@ import type {
   CreateListItemPayload,
   SetListItemCompletedPayload,
   SetListItemTitlePayload,
+  SetListNamePayload,
   OrderListsPayload,
 } from '@/types/list'
 import type {
   Recipe,
   CreateRecipePayload,
+  SetRecipeNamePayload,
   AddListItemToRecipePayload,
   RemoveListItemFromRecipePayload,
   OrderRecipesPayload,
@@ -76,6 +78,7 @@ interface SyncQueueEntryBase {
 
 type SyncOperationPayloads = {
   createList: CreateListPayload
+  renameList: SetListNamePayload
   createListItem: CreateListItemPayload
   updateListItemTitle: SetListItemTitlePayload
   setListItemCompleted: SetListItemCompletedPayload
@@ -83,6 +86,7 @@ type SyncOperationPayloads = {
   deleteListItem: DeleteListItemPayload
   orderLists: OrderListsPayload
   createRecipe: CreateRecipePayload
+  renameRecipe: SetRecipeNamePayload
   addRecipeItem: AddListItemToRecipePayload
   removeRecipeItem: RemoveListItemFromRecipePayload
   deleteRecipe: DeleteRecipePayload

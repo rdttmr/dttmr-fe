@@ -126,6 +126,7 @@ vi.mock('@/database/db', () => ({
 const listsApiMocks = vi.hoisted(() => ({
   getListsApi: vi.fn<() => Promise<unknown>>(),
   createListApi: vi.fn<() => Promise<unknown>>(),
+  renameListApi: vi.fn<() => Promise<unknown>>(),
   getListItemsApi: vi.fn<() => Promise<unknown>>(),
   createListItemApi: vi.fn<() => Promise<unknown>>(),
   updateListItemTitleApi: vi.fn<() => Promise<unknown>>(),
@@ -254,6 +255,47 @@ describe('useListsStore', () => {
     const updated = store.listItems.find((entry) => entry.id === created.id)
     expect(updated?.title).toBe('Free-range eggs')
     expect(updated?.pendingSync).toBe(false)
+  })
+
+  it('renames a list locally and pushes the change via the dedicated endpoint', async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-id-9', name: 'Groceries' })
+    listsApiMocks.renameListApi.mockResolvedValueOnce(undefined)
+    listsApiMocks.getListsApi.mockResolvedValue([{ id: 'server-id-9', name: 'Groceries' }])
+
+    const store = useListsStore()
+    await store.createList('Groceries')
+    await store.sync()
+
+    await store.renameList('server-id-9', 'Weekly shop')
+    expect(store.lists.find((entry) => entry.id === 'server-id-9')?.name).toBe('Weekly shop')
+    expect(store.lists.find((entry) => entry.id === 'server-id-9')?.pendingSync).toBe(true)
+
+    listsApiMocks.getListsApi.mockResolvedValue([{ id: 'server-id-9', name: 'Weekly shop' }])
+    await store.sync()
+
+    expect(listsApiMocks.renameListApi).toHaveBeenCalledWith('server-id-9', {
+      name: 'Weekly shop',
+    })
+    const renamed = store.lists.find((entry) => entry.id === 'server-id-9')
+    expect(renamed?.name).toBe('Weekly shop')
+    expect(renamed?.pendingSync).toBe(false)
+    expect(store.pendingCount).toBe(0)
+  })
+
+  it('renames a list created offline against its server id once the create has synced', async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-id-10', name: 'Groceries' })
+    listsApiMocks.renameListApi.mockResolvedValueOnce(undefined)
+    listsApiMocks.getListsApi.mockResolvedValue([{ id: 'server-id-10', name: 'Weekly shop' }])
+
+    const store = useListsStore()
+    const local = await store.createList('Groceries')
+    await store.renameList(local.id, 'Weekly shop')
+    await store.sync()
+
+    expect(listsApiMocks.renameListApi).toHaveBeenCalledWith('server-id-10', {
+      name: 'Weekly shop',
+    })
+    expect(store.lists.find((entry) => entry.id === 'server-id-10')?.name).toBe('Weekly shop')
   })
 
   it('does not attempt to sync while offline', async () => {

@@ -26,6 +26,10 @@ export interface CreateListItemPayload {
   title: string
 }
 
+export interface SetListNamePayload {
+  name: string
+}
+
 export interface SetListItemCompletedPayload {
   is_completed: boolean
 }

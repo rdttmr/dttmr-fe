@@ -6,6 +6,7 @@ import type { LocalListItem } from '@/database/db'
 import AppIcon from '@/components/AppIcon.vue'
 import RecipeItemRow from '@/components/RecipeItemRow.vue'
 import DeleteRecipeModal from '@/components/DeleteRecipeModal.vue'
+import RenameModal from '@/components/RenameModal.vue'
 import ShareRecipeModal from '@/components/ShareRecipeModal.vue'
 import AddRecipeItemsModal from '@/components/AddRecipeItemsModal.vue'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
@@ -17,6 +18,7 @@ const router = useRouter()
 const recipesStore = useRecipesStore()
 
 const showDeleteModal = ref(false)
+const showRenameModal = ref(false)
 const showCompleted = ref(true)
 const showShareModal = ref(false)
 const showAddItemsModal = ref(false)
@@ -59,6 +61,22 @@ const percent = computed(() =>
   items.value.length > 0 ? Math.round((doneCount.value / items.value.length) * 100) : 0,
 )
 const hue = computed(() => hueFromString(recipe.value?.name ?? ''))
+
+function handleOpenRename() {
+  isMenuOpen.value = false
+  showRenameModal.value = true
+}
+
+async function handleRename(name: string) {
+  if (!recipe.value) return
+  showRenameModal.value = false
+  actionError.value = ''
+  try {
+    await recipesStore.renameRecipe(recipe.value.id, name)
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : 'Failed to rename recipe'
+  }
+}
 
 function handleOpenDelete() {
   isMenuOpen.value = false
@@ -139,6 +157,10 @@ async function handleUncheckAll() {
             </button>
 
             <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
+              <button type="button" class="submenu-item" role="menuitem" @click="handleOpenRename">
+                <AppIcon name="edit" :size="16" />
+                <span>Rename recipe</span>
+              </button>
               <button type="button" class="submenu-item" role="menuitem" @click="handleOpenShare">
                 <AppIcon name="share" :size="16" />
                 <span>Share recipe</span>
@@ -237,6 +259,13 @@ async function handleUncheckAll() {
         <p class="empty-hint">Use “Add items” to bring in items from your lists.</p>
       </div>
 
+      <RenameModal
+        v-if="showRenameModal"
+        kind="recipe"
+        :current-name="recipe.name"
+        @close="showRenameModal = false"
+        @save="handleRename"
+      />
       <DeleteRecipeModal
         v-if="showDeleteModal"
         :recipe="recipe"

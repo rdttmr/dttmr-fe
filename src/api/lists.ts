@@ -7,6 +7,7 @@ import type {
   CreateListItemPayload,
   SetListItemCompletedPayload,
   SetListItemTitlePayload,
+  SetListNamePayload,
   AddUserToListPayload,
   RemoveUserFromListPayload,
   OrderListsPayload,
@@ -26,6 +27,13 @@ export async function createListApi(payload: CreateListPayload): Promise<List> {
     throw new Error(await extractErrorMessage(response, 'Failed to create list'))
   }
   return response.json()
+}
+
+export async function renameListApi(listId: string, payload: SetListNamePayload): Promise<void> {
+  const response = await apiClient.post(`/lists/${listId}/name`, payload)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to rename list'))
+  }
 }
 
 export async function getListItemsApi(listId: string): Promise<ListItem[]> {

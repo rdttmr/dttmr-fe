@@ -4,9 +4,16 @@ export interface Recipe {
   created_at?: string
   modified_at?: string
   position?: number
+  // Number of items in the recipe, provided by GET /recipes so the overview
+  // can show a count before the recipe's items have been fetched.
+  total_items?: number
 }
 
 export interface CreateRecipePayload {
+  name: string
+}
+
+export interface SetRecipeNamePayload {
   name: string
 }
 

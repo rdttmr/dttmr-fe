@@ -16,6 +16,7 @@ import {
   getListItemsApi,
   createListItemApi,
   updateListItemTitleApi,
+  renameListApi,
   setListItemCompletedApi,
   addUserToListApi,
   removeUserFromListApi,
@@ -37,6 +38,7 @@ const SYNC_DEBOUNCE_MS = 400
 // so each must only ever read - and delete - its own entries.
 const LIST_OP_TYPES: SyncOperationType[] = [
   'createList',
+  'renameList',
   'createListItem',
   'updateListItemTitle',
   'setListItemCompleted',
@@ -189,6 +191,23 @@ export const useListsStore = defineStore('lists', () => {
     scheduleSync()
 
     return localList
+  }
+
+  async function renameList(listId: string, name: string) {
+    const patch = {
+      name,
+      modified_at: new Date().toISOString(),
+      pendingSync: true,
+    }
+    await db.lists.update(listId, patch)
+    const existingList = lists.value.find((entry) => entry.id === listId)
+    if (existingList) Object.assign(existingList, patch)
+    await enqueue({
+      type: 'renameList',
+      payload: { name },
+      localListId: listId,
+    })
+    scheduleSync()
   }
 
   async function createListItem(listId: string, title: string): Promise<LocalListItem> {
@@ -419,6 +438,12 @@ export const useListsStore = defineStore('lists', () => {
     await useRecipesStore().remapListItemReferences(oldId, newId)
   }
 
+  async function markListSynced(listId: string) {
+    await db.lists.update(listId, { pendingSync: false })
+    const existingList = lists.value.find((entry) => entry.id === listId)
+    if (existingList) existingList.pendingSync = false
+  }
+
   async function markListItemSynced(itemId: string) {
     await db.listItems.update(itemId, { pendingSync: false })
     const existingItem = listItems.value.find((entry) => entry.id === itemId)
@@ -432,6 +457,12 @@ export const useListsStore = defineStore('lists', () => {
         if (entry.localListId) {
           await remapListId(entry.localListId, created.id)
         }
+        break
+      }
+      case 'renameList': {
+        if (!entry.localListId) break
+        await renameListApi(entry.localListId, entry.payload)
+        await markListSynced(entry.localListId)
         break
       }
       case 'createListItem': {
@@ -739,6 +770,7 @@ export const useListsStore = defineStore('lists', () => {
     refresh,
     createList,
     createListItem,
+    renameList,
     updateListItemTitle,
     setListItemCompleted,
     addUserToList,
