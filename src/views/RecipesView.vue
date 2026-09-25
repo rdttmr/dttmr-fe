@@ -1,25 +1,30 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRecipesStore } from '@/stores/recipes'
+import { useGroupsStore } from '@/stores/groups'
 import type { LocalRecipe } from '@/database/db'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import AppIcon from '@/components/AppIcon.vue'
 import RecipeCard from '@/components/RecipeCard.vue'
-import ShareRecipeModal from '@/components/ShareRecipeModal.vue'
+import GroupFilter from '@/components/GroupFilter.vue'
+import MoveToGroupModal from '@/components/MoveToGroupModal.vue'
 import DeleteRecipeModal from '@/components/DeleteRecipeModal.vue'
 import { useDragReorder } from '@/composables/useDragReorder'
+import { mergeSubsetOrder } from '@/utils/orderRebase'
 
 const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 
 // Doubles as the "new recipe" text box and the live filter query on the
 // list below, same as the item input on ListDetailView.
 const newRecipeName = ref('')
 const isCreating = ref(false)
 const createError = ref('')
-const sharingRecipe = ref<LocalRecipe | null>(null)
+const movingRecipe = ref<LocalRecipe | null>(null)
 const deletingRecipe = ref<LocalRecipe | null>(null)
 
 onMounted(() => {
+  groupsStore.loadGroups()
   recipesStore.loadRecipes()
 })
 
@@ -27,16 +32,28 @@ onMounted(() => {
 // touches the server.
 const filterQuery = computed(() => newRecipeName.value.trim())
 
-const filteredRecipes = computed(() => {
-  const query = filterQuery.value
-  if (!query) return recipesStore.sortedRecipes
-  return recipesStore.sortedRecipes.filter((recipe) => fuzzyMatch(query, recipe.name))
+const groupRecipes = computed(() => {
+  const groupId = groupsStore.activeGroupId
+  if (!groupId) return recipesStore.sortedRecipes
+  return recipesStore.sortedRecipes.filter((recipe) => recipe.group_id === groupId)
 })
 
-// Dragging only makes sense against the full list: while a filter is active
-// the visible rows are a subset, and the server re-assigns the order of ALL
-// recipes, so a partial order would silently shuffle the hidden ones.
+const filteredRecipes = computed(() => {
+  const query = filterQuery.value
+  if (!query) return groupRecipes.value
+  return groupRecipes.value.filter((recipe) => fuzzyMatch(query, recipe.name))
+})
+
+// Dragging is off while searching: a fuzzy match is a scattered subset, so
+// moving a row among matches says little about where it belongs in the full
+// order. The group filter is fine: a drag there reorders that group's recipes
+// within the slots they already hold (see mergeSubsetOrder).
 const canReorder = computed(() => !filterQuery.value)
+
+function groupLabel(recipe: LocalRecipe): string | undefined {
+  if (!groupsStore.hasMultipleGroups || groupsStore.activeGroupId) return undefined
+  return groupsStore.groupName(recipe.group_id)
+}
 
 // Local, reorderable copy of what's on screen. Kept in sync with
 // filteredRecipes except while a drag is in progress, so a mid-sync-pass
@@ -45,7 +62,8 @@ const displayedRecipes = ref<LocalRecipe[]>([])
 const { draggingId, isPointerActive, dragOffsetPx, setItemRef, onPointerDown } = useDragReorder(
   displayedRecipes,
   (orderedIds) => {
-    void recipesStore.reorderRecipes(orderedIds)
+    const fullIds = recipesStore.sortedRecipes.map((recipe) => recipe.id)
+    void recipesStore.reorderRecipes(mergeSubsetOrder(fullIds, orderedIds))
   },
 )
 
@@ -57,12 +75,16 @@ watch(
   { immediate: true },
 )
 
-function handleOpenShare(recipe: LocalRecipe) {
-  sharingRecipe.value = recipe
-}
-
-function handleCloseShare() {
-  sharingRecipe.value = null
+async function handleMove(groupId: string) {
+  if (!movingRecipe.value) return
+  const recipeId = movingRecipe.value.id
+  movingRecipe.value = null
+  createError.value = ''
+  try {
+    await recipesStore.moveRecipeToGroup(recipeId, groupId)
+  } catch (err) {
+    createError.value = err instanceof Error ? err.message : 'Failed to move recipe'
+  }
 }
 
 function handleOpenDelete(recipe: LocalRecipe) {
@@ -91,7 +113,7 @@ async function handleCreateRecipe() {
   createError.value = ''
   isCreating.value = true
   try {
-    await recipesStore.createRecipe(name)
+    await recipesStore.createRecipe(name, groupsStore.activeGroupId ?? undefined)
     newRecipeName.value = ''
   } catch (err) {
     createError.value = err instanceof Error ? err.message : 'Failed to create recipe'
@@ -106,12 +128,13 @@ async function handleCreateRecipe() {
     <header class="page-head">
       <p class="eyebrow">Collections</p>
       <h1>Recipes</h1>
-      <p v-if="recipesStore.sortedRecipes.length > 0" class="page-sub">
-        {{ recipesStore.sortedRecipes.length }}
-        {{ recipesStore.sortedRecipes.length === 1 ? 'recipe' : 'recipes' }} · reusable shopping
-        bundles
+      <p v-if="groupRecipes.length > 0" class="page-sub">
+        {{ groupRecipes.length }}
+        {{ groupRecipes.length === 1 ? 'recipe' : 'recipes' }} · reusable shopping bundles
       </p>
     </header>
+
+    <GroupFilter />
 
     <form class="composer" @submit.prevent="handleCreateRecipe">
       <div class="field">
@@ -155,24 +178,35 @@ async function handleCreateRecipe() {
       >
         <RecipeCard
           :recipe="recipe"
+          :group-label="groupLabel(recipe)"
           :sortable="canReorder && displayedRecipes.length > 1"
           :dragging="draggingId === recipe.id"
-          @share="handleOpenShare(recipe)"
+          @move="movingRecipe = recipe"
           @delete="handleOpenDelete(recipe)"
           @handle-pointerdown="onPointerDown(recipe.id, $event)"
         />
       </li>
     </TransitionGroup>
 
-    <div v-else-if="recipesStore.sortedRecipes.length === 0" class="empty-state">
+    <div v-else-if="groupRecipes.length === 0" class="empty-state">
       <span class="empty-icon"><AppIcon name="chef" :size="34" :stroke="1.6" /></span>
-      <p class="empty-title">No recipes yet</p>
+      <p v-if="groupsStore.activeGroupId" class="empty-title">
+        No recipes in {{ groupsStore.groupName(groupsStore.activeGroupId) }}
+      </p>
+      <p v-else class="empty-title">No recipes yet</p>
       <p class="empty-hint">Bundle items from your lists into a recipe you can reuse and share.</p>
     </div>
 
     <p v-else class="empty-hint">No recipes match "{{ filterQuery }}".</p>
 
-    <ShareRecipeModal v-if="sharingRecipe" :recipe="sharingRecipe" @close="handleCloseShare" />
+    <MoveToGroupModal
+      v-if="movingRecipe"
+      kind="recipe"
+      :name="movingRecipe.name"
+      :current-group-id="movingRecipe.group_id"
+      @close="movingRecipe = null"
+      @move="handleMove"
+    />
     <DeleteRecipeModal
       v-if="deletingRecipe"
       :recipe="deletingRecipe"

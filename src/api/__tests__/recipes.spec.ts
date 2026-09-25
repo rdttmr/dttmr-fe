@@ -8,8 +8,7 @@ import {
   addListItemToRecipeApi,
   removeListItemFromRecipeApi,
   uncheckRecipeApi,
-  shareRecipeApi,
-  joinRecipeApi,
+  setRecipeGroupApi,
   orderRecipesApi,
 } from '../recipes'
 import { useAuthStore } from '@/stores/auth'
@@ -203,55 +202,31 @@ describe('recipes API', () => {
     await expect(uncheckRecipeApi('recipe-1')).rejects.toThrow('Failed')
   })
 
-  it('shareRecipeApi sends POST to /recipes/{id}/share and returns the code', async () => {
-    const mockCode = { code: 'abc123' }
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockCode,
-    } as unknown as Response)
-    global.fetch = fetchMock
-
-    const result = await shareRecipeApi('recipe-1')
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/recipes/recipe-1/share`,
-      expect.objectContaining({ method: 'POST' }),
-    )
-    expect(result).toEqual(mockCode)
-  })
-
-  it('shareRecipeApi throws on failure', async () => {
-    global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ message: 'Failed' }),
-    } as unknown as Response)
-
-    await expect(shareRecipeApi('recipe-1')).rejects.toThrow('Failed')
-  })
-
-  it('joinRecipeApi sends POST to /recipes/{code}/join', async () => {
+  it('setRecipeGroupApi sends POST to /recipes/{id}/group with the target group', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await joinRecipeApi('abc123')
+    await setRecipeGroupApi('recipe-1', { group_id: 'group-2' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/recipes/abc123/join`,
-      expect.objectContaining({ method: 'POST' }),
+      `${API_BASE_URL}/recipes/recipe-1/group`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ group_id: 'group-2' }),
+      }),
     )
   })
 
-  it('joinRecipeApi throws on failure', async () => {
+  it('setRecipeGroupApi throws on failure', async () => {
     global.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ message: 'Invalid code' }),
+      json: async () => ({ message: 'Failed' }),
     } as unknown as Response)
 
-    await expect(joinRecipeApi('bad-code')).rejects.toThrow('Invalid code')
+    await expect(setRecipeGroupApi('recipe-1', { group_id: 'group-2' })).rejects.toThrow('Failed')
   })
 
   it('orderRecipesApi sends POST to /recipes/order with the ordered ids', async () => {

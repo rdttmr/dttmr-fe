@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
+import { useGroupsStore } from '@/stores/groups'
 import {
   db,
   type LocalRecipe,
@@ -20,8 +21,7 @@ import {
   addListItemToRecipeApi,
   removeListItemFromRecipeApi,
   uncheckRecipeApi,
-  shareRecipeApi,
-  joinRecipeApi,
+  setRecipeGroupApi,
   orderRecipesApi,
 } from '@/api/recipes'
 import { isServerRejection } from '@/api/http'
@@ -182,12 +182,14 @@ export const useRecipesStore = defineStore('recipes', () => {
     }, SYNC_DEBOUNCE_MS)
   }
 
-  async function createRecipe(name: string): Promise<LocalRecipe> {
+  // Same default-group fallback as createList in stores/lists.ts.
+  async function createRecipe(name: string, groupId?: string): Promise<LocalRecipe> {
     const now = new Date().toISOString()
     const id = generateId()
     const localRecipe: LocalRecipe = {
       id,
       clientId: id,
+      group_id: groupId ?? useGroupsStore().defaultGroup?.id,
       name,
       created_at: now,
       modified_at: now,
@@ -199,7 +201,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     upsertRecipe(localRecipe)
     await enqueue({
       type: 'createRecipe',
-      payload: { name },
+      payload: groupId ? { name, group_id: groupId } : { name },
       localRecipeId: localRecipe.id,
     })
     scheduleSync()
@@ -358,23 +360,53 @@ export const useRecipesStore = defineStore('recipes', () => {
     scheduleSync()
   }
 
-  // Sharing/joining go straight to the server, same as list sharing
-  // (stores/lists.ts addUserToList/removeUserFromList) - there's no local
-  // representation of "the current share code" worth keeping offline.
-  async function shareRecipe(recipeId: string): Promise<string> {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new Error('Cannot share recipe while offline')
+  // A recipe may only link items of lists in its own group, and the server
+  // drops the links that break that rule when a list or recipe is moved.
+  // This mirrors it locally for every link where both sides' groups are
+  // known; anything it can't judge is left for the next pull.
+  async function removeLinksAcrossGroups() {
+    const listsStore = useListsStore()
+    const listGroups = new Map(listsStore.lists.map((list) => [list.id, list.group_id]))
+    const itemGroups = new Map(
+      listsStore.listItems.map((item) => [item.id, listGroups.get(item.list_id)]),
+    )
+    const recipeGroups = new Map(recipes.value.map((recipe) => [recipe.id, recipe.group_id]))
+
+    const crossing = recipeItemLinks.value.filter((link) => {
+      const recipeGroup = recipeGroups.get(link.recipeId)
+      const itemGroup = itemGroups.get(link.listItemId)
+      return recipeGroup && itemGroup && recipeGroup !== itemGroup
+    })
+    for (const link of crossing) {
+      await db.recipeItems.delete([link.recipeId, link.listItemId])
+      removeLocalLink(link.recipeId, link.listItemId)
+      await adjustTotalItems(link.recipeId, -1)
     }
-    const { code } = await shareRecipeApi(recipeId)
-    return code
   }
 
-  async function joinRecipe(code: string) {
+  // Online-only for the same reasons as moveListToGroup in stores/lists.ts.
+  async function moveRecipeToGroup(recipeId: string, groupId: string) {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new Error('Cannot join recipe while offline')
+      throw new Error('Cannot move a recipe while offline')
     }
-    await joinRecipeApi(code)
+
+    const clientId = recipes.value.find((entry) => entry.id === recipeId)?.clientId ?? recipeId
     await sync()
+    const recipe = recipes.value.find(
+      (entry) => entry.id === clientId || entry.clientId === clientId,
+    )
+    if (!recipe) throw new Error('Recipe not found')
+    const pendingCreates = await db.syncQueue.where('type').equals('createRecipe').toArray()
+    if (pendingCreates.some((entry) => entry.localRecipeId === recipe.id)) {
+      throw new Error("This recipe hasn't synced yet. Try again once it has.")
+    }
+
+    await setRecipeGroupApi(recipe.id, { group_id: groupId })
+    await db.recipes.update(recipe.id, { group_id: groupId })
+    recipe.group_id = groupId
+
+    await removeLinksAcrossGroups()
+    await pullRecipeItems(recipe.id)
   }
 
   // Remaps a client-generated temporary recipe id to the server-assigned id
@@ -779,8 +811,8 @@ export const useRecipesStore = defineStore('recipes', () => {
     removeItemFromRecipe,
     removeItemFromAllRecipes,
     uncheckRecipe,
-    shareRecipe,
-    joinRecipe,
+    removeLinksAcrossGroups,
+    moveRecipeToGroup,
     remapListItemReferences,
     sync,
     pullRecipesFromServer,

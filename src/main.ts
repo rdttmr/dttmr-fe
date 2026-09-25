@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 import { useListsStore } from './stores/lists'
 import { useRecipesStore } from './stores/recipes'
+import { useGroupsStore } from './stores/groups'
 
 const app = createApp(App)
 
@@ -19,9 +20,12 @@ app.mount('#app')
 // app becomes online again, and once eagerly on startup.
 const listsStore = useListsStore()
 const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 window.addEventListener('online', () => {
+  void groupsStore.sync()
   void listsStore.sync()
   void recipesStore.sync()
 })
+void groupsStore.ensureLoaded().then(() => groupsStore.sync())
 void listsStore.sync()
 void recipesStore.sync()

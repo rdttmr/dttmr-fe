@@ -30,20 +30,25 @@ const router = createRouter({
       component: () => import('../views/RecipesView.vue'),
       meta: { requiresAuth: true },
     },
-    // Placed before /recipes/:id so the literal "join" segment isn't
-    // swallowed as a recipe id.
-    {
-      path: '/recipes/join',
-      name: 'recipe-join',
-      component: () => import('../views/RecipeJoinView.vue'),
-      meta: { requiresAuth: true },
-    },
     {
       path: '/recipes/:id',
       name: 'recipe-detail',
       component: () => import('../views/RecipeDetailView.vue'),
       meta: { requiresAuth: true },
       props: true,
+    },
+    {
+      path: '/groups',
+      name: 'groups',
+      component: () => import('../views/GroupsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    // Reached only through a share link from ShareGroupModal.
+    {
+      path: '/groups/join',
+      name: 'group-join',
+      component: () => import('../views/GroupJoinView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/login',

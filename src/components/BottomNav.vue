@@ -26,11 +26,17 @@ const tabs = computed<
     to: '/recipes',
     label: 'Recipes',
     icon: 'recipes',
-    names: ['recipes', 'recipe-detail', 'recipe-join'],
+    names: ['recipes', 'recipe-detail'],
     badge: recipesStore.pendingCount,
   },
   { to: '/exercises', label: 'Train', icon: 'dumbbell', names: ['exercises'], badge: 0 },
-  { to: '/account', label: 'Account', icon: 'user', names: ['account'], badge: 0 },
+  {
+    to: '/account',
+    label: 'Account',
+    icon: 'user',
+    names: ['account', 'groups', 'group-join'],
+    badge: 0,
+  },
 ])
 </script>
 

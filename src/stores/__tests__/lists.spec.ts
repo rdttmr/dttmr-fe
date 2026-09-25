@@ -131,8 +131,7 @@ const listsApiMocks = vi.hoisted(() => ({
   createListItemApi: vi.fn<() => Promise<unknown>>(),
   updateListItemTitleApi: vi.fn<() => Promise<unknown>>(),
   setListItemCompletedApi: vi.fn<() => Promise<unknown>>(),
-  addUserToListApi: vi.fn<() => Promise<unknown>>(),
-  removeUserFromListApi: vi.fn<() => Promise<unknown>>(),
+  setListGroupApi: vi.fn<() => Promise<unknown>>(),
   deleteListApi: vi.fn<() => Promise<unknown>>(),
   deleteListItemApi: vi.fn<() => Promise<unknown>>(),
   orderListsApi: vi.fn<() => Promise<unknown>>(),
@@ -141,6 +140,8 @@ const listsApiMocks = vi.hoisted(() => ({
 vi.mock('@/api/lists', () => listsApiMocks)
 
 const { useListsStore } = await import('../lists')
+const { useGroupsStore } = await import('../groups')
+const { useRecipesStore } = await import('../recipes')
 
 describe('useListsStore', () => {
   beforeEach(async () => {
@@ -476,76 +477,87 @@ describe('useListsStore', () => {
     expect(store.pendingCount).toBe(0)
   })
 
-  it('shares list with server when online without adding to sync queue', async () => {
-    listsApiMocks.addUserToListApi.mockResolvedValueOnce(undefined)
+  it('creates a list in the given group and sends its group_id', async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({
+      id: 'server-id-g',
+      group_id: 'group-home',
+      name: 'Groceries',
+    })
 
     const store = useListsStore()
-    await store.addUserToList('list-1', 'friend@example.com')
+    const local = await store.createList('Groceries', 'group-home')
+    expect(local.group_id).toBe('group-home')
 
-    expect(listsApiMocks.addUserToListApi).toHaveBeenCalledWith({
-      list_id: 'list-1',
-      email: 'friend@example.com',
+    await store.sync()
+
+    expect(listsApiMocks.createListApi).toHaveBeenCalledWith({
+      name: 'Groceries',
+      group_id: 'group-home',
     })
-    expect(store.pendingCount).toBe(0)
   })
 
-  it('throws error when sharing list while offline without calling API or adding to sync queue', async () => {
+  it('leaves group_id out of the create payload without a group, assuming the default group locally', async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-id-d', name: 'Groceries' })
+    useGroupsStore().groups = [
+      { id: 'group-personal', name: 'Personal', is_default: true },
+      { id: 'group-home', name: 'Home', is_default: false },
+    ]
+
+    const store = useListsStore()
+    const local = await store.createList('Groceries')
+    expect(local.group_id).toBe('group-personal')
+
+    await store.sync()
+
+    expect(listsApiMocks.createListApi).toHaveBeenCalledWith({ name: 'Groceries' })
+  })
+
+  it('moves a list to another group and drops recipe links that now cross groups', async () => {
+    listsApiMocks.setListGroupApi.mockResolvedValueOnce(undefined)
+    listsApiMocks.getListsApi.mockResolvedValue([
+      { id: 'list-1', group_id: 'group-a', name: 'Groceries' },
+    ])
+    await fakeDb.lists.put({ id: 'list-1', group_id: 'group-a', name: 'Groceries' })
+    await fakeDb.listItems.put({ id: 'item-1', list_id: 'list-1', title: 'Milk' })
+
+    const store = useListsStore()
+    await store.refresh()
+    const recipesStore = useRecipesStore()
+    vi.spyOn(recipesStore, 'sync').mockResolvedValue()
+    recipesStore.recipes = [
+      { id: 'recipe-a', group_id: 'group-a', name: 'Pancakes', total_items: 1 },
+      { id: 'recipe-b', group_id: 'group-b', name: 'Porridge', total_items: 0 },
+    ]
+    recipesStore.recipeItemLinks = [{ recipeId: 'recipe-a', listItemId: 'item-1' }]
+
+    await store.moveListToGroup('list-1', 'group-b')
+
+    expect(listsApiMocks.setListGroupApi).toHaveBeenCalledWith('list-1', { group_id: 'group-b' })
+    expect(store.lists.find((list) => list.id === 'list-1')?.group_id).toBe('group-b')
+    expect((await fakeDb.lists.get('list-1'))?.group_id).toBe('group-b')
+    expect(recipesStore.recipeItemLinks).toEqual([])
+    expect(recipesStore.recipes.find((r) => r.id === 'recipe-a')?.total_items).toBe(0)
+  })
+
+  it('refuses to move a list while offline without calling the API', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
 
     const store = useListsStore()
-    await expect(store.addUserToList('list-1', 'friend@example.com')).rejects.toThrow(
-      'Cannot share list while offline',
+    await expect(store.moveListToGroup('list-1', 'group-b')).rejects.toThrow(
+      'Cannot move a list while offline',
     )
 
-    expect(listsApiMocks.addUserToListApi).not.toHaveBeenCalled()
-    expect(store.pendingCount).toBe(0)
+    expect(listsApiMocks.setListGroupApi).not.toHaveBeenCalled()
   })
 
-  it('propagates error when sharing list fails on server without adding to sync queue', async () => {
-    listsApiMocks.addUserToListApi.mockRejectedValueOnce(new Error('User not found'))
+  it('refuses to move a list whose create has not synced yet', async () => {
+    listsApiMocks.createListApi.mockRejectedValue(new Error('Network error'))
 
     const store = useListsStore()
-    await expect(store.addUserToList('list-1', 'unknown@example.com')).rejects.toThrow(
-      'User not found',
-    )
+    const local = await store.createList('Groceries')
 
-    expect(store.pendingCount).toBe(0)
-  })
-
-  it('removes user from list on the server when online without adding to sync queue', async () => {
-    listsApiMocks.removeUserFromListApi.mockResolvedValueOnce(undefined)
-
-    const store = useListsStore()
-    await store.removeUserFromList('list-1', 'friend@example.com')
-
-    expect(listsApiMocks.removeUserFromListApi).toHaveBeenCalledWith({
-      list_id: 'list-1',
-      email: 'friend@example.com',
-    })
-    expect(store.pendingCount).toBe(0)
-  })
-
-  it('throws error when removing user from list while offline without calling API', async () => {
-    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
-
-    const store = useListsStore()
-    await expect(store.removeUserFromList('list-1', 'friend@example.com')).rejects.toThrow(
-      'Cannot remove user from list while offline',
-    )
-
-    expect(listsApiMocks.removeUserFromListApi).not.toHaveBeenCalled()
-    expect(store.pendingCount).toBe(0)
-  })
-
-  it('propagates error when removing user from list fails on server', async () => {
-    listsApiMocks.removeUserFromListApi.mockRejectedValueOnce(new Error('User not found'))
-
-    const store = useListsStore()
-    await expect(store.removeUserFromList('list-1', 'unknown@example.com')).rejects.toThrow(
-      'User not found',
-    )
-
-    expect(store.pendingCount).toBe(0)
+    await expect(store.moveListToGroup(local.id, 'group-b')).rejects.toThrow("hasn't synced yet")
+    expect(listsApiMocks.setListGroupApi).not.toHaveBeenCalled()
   })
 
   it("leaves the recipes store's queued operations alone instead of consuming them", async () => {

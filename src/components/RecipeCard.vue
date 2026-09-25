@@ -8,11 +8,16 @@ import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 
 const props = withDefaults(
-  defineProps<{ recipe: LocalRecipe; dragging?: boolean; sortable?: boolean }>(),
-  { dragging: false, sortable: false },
+  defineProps<{
+    recipe: LocalRecipe
+    groupLabel?: string
+    dragging?: boolean
+    sortable?: boolean
+  }>(),
+  { groupLabel: undefined, dragging: false, sortable: false },
 )
 const emit = defineEmits<{
-  share: [recipe: LocalRecipe]
+  move: [recipe: LocalRecipe]
   delete: [recipe: LocalRecipe]
   'handle-pointerdown': [event: PointerEvent]
 }>()
@@ -33,11 +38,11 @@ const {
   toggle: toggleMenu,
 } = useDismissableMenu()
 
-function handleShare(event: Event) {
+function handleMove(event: Event) {
   event.preventDefault()
   event.stopPropagation()
   isMenuOpen.value = false
-  emit('share', props.recipe)
+  emit('move', props.recipe)
 }
 
 function handleDelete(event: Event) {
@@ -77,6 +82,7 @@ function handleDelete(event: Event) {
             {{ itemCount === 1 ? 'ingredient' : 'ingredients' }}
           </template>
           <template v-else>No items yet</template>
+          <span v-if="groupLabel" class="group-tag">· {{ groupLabel }}</span>
           <span v-if="recipe.pendingSync" class="pending-tag">syncing…</span>
         </p>
       </div>
@@ -97,9 +103,9 @@ function handleDelete(event: Event) {
       </button>
 
       <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
-        <button type="button" class="submenu-item" role="menuitem" @click="handleShare">
-          <AppIcon name="share" :size="16" />
-          <span>Share recipe</span>
+        <button type="button" class="submenu-item" role="menuitem" @click="handleMove">
+          <AppIcon name="users" :size="16" />
+          <span>Move to group</span>
         </button>
         <button
           type="button"
@@ -232,6 +238,13 @@ function handleDelete(event: Event) {
   gap: 0.35rem;
   font-size: 0.78rem;
   color: var(--c-text-soft);
+}
+
+.group-tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pending-tag {

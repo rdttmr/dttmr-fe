@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
+import { useGroupsStore } from '@/stores/groups'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import AppIcon from '@/components/AppIcon.vue'
 import { hueFromString } from '@/utils/hue'
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 
 const listsStore = useListsStore()
 const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 
 const selectedListId = ref<string | null>(null)
 const listFilterQuery = ref('')
@@ -25,10 +27,21 @@ onMounted(() => {
   listsStore.loadLists()
 })
 
+// A recipe can only link items of lists in its own group (the server rejects
+// anything else), so only those lists are offered.
+const recipeGroupId = computed(
+  () => recipesStore.recipes.find((recipe) => recipe.id === props.recipeId)?.group_id,
+)
+const groupLists = computed(() =>
+  recipeGroupId.value
+    ? listsStore.sortedLists.filter((list) => list.group_id === recipeGroupId.value)
+    : listsStore.sortedLists,
+)
+
 const filteredLists = computed(() => {
   const query = listFilterQuery.value.trim()
-  if (!query) return listsStore.sortedLists
-  return listsStore.sortedLists.filter((list) => fuzzyMatch(query, list.name))
+  if (!query) return groupLists.value
+  return groupLists.value.filter((list) => fuzzyMatch(query, list.name))
 })
 
 async function selectList(listId: string) {
@@ -92,9 +105,14 @@ function handleClose() {
   >
     <div class="picker">
       <template v-if="!selectedListId">
-        <p class="modal-description">Pick a list to add items from.</p>
+        <p class="modal-description">
+          Pick a list to add items from.
+          <template v-if="groupsStore.hasMultipleGroups && groupsStore.groupName(recipeGroupId)">
+            Only lists in {{ groupsStore.groupName(recipeGroupId) }} can be used.
+          </template>
+        </p>
 
-        <div v-if="listsStore.sortedLists.length > 1" class="field search-field">
+        <div v-if="groupLists.length > 1" class="field search-field">
           <input v-model="listFilterQuery" type="text" placeholder="Filter lists…" />
         </div>
 
@@ -118,8 +136,11 @@ function handleClose() {
               </button>
             </li>
           </ul>
-          <p v-else-if="listsStore.sortedLists.length === 0" class="empty-hint">
-            You don't have any lists yet.
+          <p v-else-if="groupLists.length === 0" class="empty-hint">
+            <template v-if="listsStore.sortedLists.length === 0"
+              >You don't have any lists yet.</template
+            >
+            <template v-else>There are no lists in this recipe's group yet.</template>
           </p>
           <p v-else class="empty-hint">No lists match "{{ listFilterQuery }}".</p>
         </div>

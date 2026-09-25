@@ -17,6 +17,7 @@ import type {
   RemoveListItemFromRecipePayload,
   OrderRecipesPayload,
 } from '@/types/recipe'
+import type { Group } from '@/types/group'
 
 export interface LocalList extends List {
   pendingSync?: boolean
@@ -114,6 +115,9 @@ class AppDatabase extends Dexie {
   syncQueue!: Table<SyncQueueEntry, number>
   recipes!: Table<LocalRecipe, string>
   recipeItems!: Table<RecipeItemLink, [string, string]>
+  // A read cache of GET /groups, so the group filter and pickers work offline.
+  // Group mutations are online-only, so there is no pendingSync here.
+  groups!: Table<Group, string>
 
   constructor() {
     super('dttmrdb')
@@ -127,6 +131,10 @@ class AppDatabase extends Dexie {
     this.version(2).stores({
       recipes: 'id, name, pendingSync',
       recipeItems: '[recipeId+listItemId], recipeId, listItemId, pendingSync',
+    })
+
+    this.version(3).stores({
+      groups: 'id',
     })
   }
 }

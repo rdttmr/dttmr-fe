@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useListsStore } from '@/stores/lists'
 import { useAuthStore } from '@/stores/auth'
 import { useRecipesStore } from '@/stores/recipes'
+import { useGroupsStore } from '@/stores/groups'
 import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 import { getVersionApi } from '@/api/version'
@@ -14,6 +15,7 @@ import InvitesPanel from '@/components/InvitesPanel.vue'
 const listsStore = useListsStore()
 const authStore = useAuthStore()
 const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 const router = useRouter()
 
 const displayName = computed(() => authStore.username || authStore.email || 'Account')
@@ -41,6 +43,7 @@ const isLoadingVersion = ref(false)
 onMounted(() => {
   listsStore.ensureLoaded()
   recipesStore.ensureLoaded()
+  groupsStore.ensureLoaded()
   loadVersion()
 })
 
@@ -98,6 +101,21 @@ async function loadVersion() {
         <span class="stat-label">Syncing now</span>
       </div>
     </section>
+
+    <h2 class="section-label">Groups</h2>
+    <RouterLink to="/groups" class="card groups-link">
+      <span class="groups-link-icon"><AppIcon name="users" :size="20" /></span>
+      <span class="groups-link-label">
+        <strong>Manage groups</strong>
+        <span v-if="groupsStore.groups.length > 0">
+          {{ groupsStore.groups.length }} {{ groupsStore.groups.length === 1 ? 'group' : 'groups' }}
+          <template v-if="groupsStore.defaultGroup">
+            · default: {{ groupsStore.defaultGroup.name }}</template
+          >
+        </span>
+      </span>
+      <AppIcon name="chevron-right" class="groups-link-chevron" :size="18" />
+    </RouterLink>
 
     <h2 class="section-label">Invites</h2>
     <InvitesPanel />
@@ -257,6 +275,51 @@ async function loadVersion() {
   to {
     transform: rotate(360deg);
   }
+}
+
+.groups-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.05rem 1.1rem;
+  background-color: var(--c-bg-soft);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.groups-link:hover {
+  border-color: var(--c-border-hover);
+}
+
+.groups-link-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background-color: var(--c-accent-bg);
+  color: var(--c-accent-strong);
+}
+
+.groups-link-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--c-text-soft);
+}
+
+.groups-link-label strong {
+  font-size: 0.98rem;
+  color: var(--c-heading);
+}
+
+.groups-link-chevron {
+  color: var(--c-text-soft);
 }
 
 .info-card {

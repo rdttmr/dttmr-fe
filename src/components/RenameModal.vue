@@ -3,9 +3,9 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import BaseModal from '@/components/BaseModal.vue'
 
 const props = defineProps<{
-  // Used for the title/labels ("Rename list"), so one sheet serves both the
-  // list and recipe detail views.
-  kind: 'list' | 'recipe'
+  // Used for the title/labels ("Rename list"), so one sheet serves lists,
+  // recipes and groups.
+  kind: 'list' | 'recipe' | 'group'
   currentName: string
 }>()
 
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 const nameInput = ref<HTMLInputElement | null>(null)
 const newName = ref(props.currentName)
 
+const kindLabel = computed(() => props.kind.charAt(0).toUpperCase() + props.kind.slice(1))
 const trimmedName = computed(() => newName.value.trim())
 const canSave = computed(() => trimmedName.value !== '')
 
@@ -55,8 +56,8 @@ function handleSave() {
           ref="nameInput"
           v-model="newName"
           type="text"
-          :placeholder="`${kind === 'list' ? 'List' : 'Recipe'} name`"
-          :aria-label="`${kind === 'list' ? 'List' : 'Recipe'} name`"
+          :placeholder="`${kindLabel} name`"
+          :aria-label="`${kindLabel} name`"
           autocomplete="off"
         />
       </div>

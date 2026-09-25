@@ -1,5 +1,7 @@
 export interface List {
   id: string
+  // The group the list belongs to. Every member of that group sees the list.
+  group_id?: string
   name: string
   created_at?: string
   modified_at?: string
@@ -19,6 +21,8 @@ export interface ListItem {
 
 export interface CreateListPayload {
   name: string
+  // Optional: the server falls back to the user's default group.
+  group_id?: string
 }
 
 export interface CreateListItemPayload {
@@ -38,16 +42,10 @@ export interface SetListItemTitlePayload {
   title: string
 }
 
-export interface AddUserToListPayload {
-  list_id: string
-  email: string
-}
-
-export interface RemoveUserFromListPayload {
-  list_id: string
-  email: string
-}
-
 export interface OrderListsPayload {
   list_ids: string[]
+}
+
+export interface SetListGroupPayload {
+  group_id: string
 }

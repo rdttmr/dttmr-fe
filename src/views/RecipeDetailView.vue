@@ -7,7 +7,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import RecipeItemRow from '@/components/RecipeItemRow.vue'
 import DeleteRecipeModal from '@/components/DeleteRecipeModal.vue'
 import RenameModal from '@/components/RenameModal.vue'
-import ShareRecipeModal from '@/components/ShareRecipeModal.vue'
+import MoveToGroupModal from '@/components/MoveToGroupModal.vue'
 import AddRecipeItemsModal from '@/components/AddRecipeItemsModal.vue'
 import { useDismissableMenu } from '@/composables/useDismissableMenu'
 import { hueFromString } from '@/utils/hue'
@@ -20,7 +20,7 @@ const recipesStore = useRecipesStore()
 const showDeleteModal = ref(false)
 const showRenameModal = ref(false)
 const showCompleted = ref(true)
-const showShareModal = ref(false)
+const showMoveModal = ref(false)
 const showAddItemsModal = ref(false)
 const actionError = ref('')
 const isUnchecking = ref(false)
@@ -98,13 +98,20 @@ async function handleConfirmDelete() {
   }
 }
 
-function handleOpenShare() {
+function handleOpenMove() {
   isMenuOpen.value = false
-  showShareModal.value = true
+  showMoveModal.value = true
 }
 
-function handleCloseShare() {
-  showShareModal.value = false
+async function handleMove(groupId: string) {
+  if (!recipe.value) return
+  showMoveModal.value = false
+  actionError.value = ''
+  try {
+    await recipesStore.moveRecipeToGroup(recipe.value.id, groupId)
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : 'Failed to move recipe'
+  }
 }
 
 async function handleUncheckAll() {
@@ -161,9 +168,9 @@ async function handleUncheckAll() {
                 <AppIcon name="edit" :size="16" />
                 <span>Rename recipe</span>
               </button>
-              <button type="button" class="submenu-item" role="menuitem" @click="handleOpenShare">
-                <AppIcon name="share" :size="16" />
-                <span>Share recipe</span>
+              <button type="button" class="submenu-item" role="menuitem" @click="handleOpenMove">
+                <AppIcon name="users" :size="16" />
+                <span>Move to group</span>
               </button>
               <button
                 type="button"
@@ -272,7 +279,14 @@ async function handleUncheckAll() {
         @close="handleCloseDelete"
         @confirm="handleConfirmDelete"
       />
-      <ShareRecipeModal v-if="showShareModal" :recipe="recipe" @close="handleCloseShare" />
+      <MoveToGroupModal
+        v-if="showMoveModal"
+        kind="recipe"
+        :name="recipe.name"
+        :current-group-id="recipe.group_id"
+        @close="showMoveModal = false"
+        @move="handleMove"
+      />
       <AddRecipeItemsModal
         v-if="showAddItemsModal"
         :recipe-id="props.id"

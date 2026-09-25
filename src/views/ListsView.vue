@@ -1,35 +1,53 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useListsStore } from '@/stores/lists'
+import { useGroupsStore } from '@/stores/groups'
 import type { LocalList } from '@/database/db'
 import ListCard from '@/components/ListCard.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import ShareListModal from '@/components/ShareListModal.vue'
+import GroupFilter from '@/components/GroupFilter.vue'
+import MoveToGroupModal from '@/components/MoveToGroupModal.vue'
 import DeleteListModal from '@/components/DeleteListModal.vue'
 import { useDragReorder } from '@/composables/useDragReorder'
+import { mergeSubsetOrder } from '@/utils/orderRebase'
 
 const listsStore = useListsStore()
+const groupsStore = useGroupsStore()
 
 const newListName = ref('')
 const isCreating = ref(false)
 const createError = ref('')
-const sharingList = ref<LocalList | null>(null)
+const movingList = ref<LocalList | null>(null)
 const deletingList = ref<LocalList | null>(null)
 
-// Local, reorderable copy of the store's list order. Kept in sync with
-// listsStore.sortedLists except while a drag is in progress, so a
-// mid-sync-pass update (e.g. total_items ticking over) can't yank a row out
-// from under the user's finger.
+const visibleLists = computed(() => {
+  const groupId = groupsStore.activeGroupId
+  if (!groupId) return listsStore.sortedLists
+  return listsStore.sortedLists.filter((list) => list.group_id === groupId)
+})
+
+// Which group each card belongs to only matters when several are mixed.
+function groupLabel(list: LocalList): string | undefined {
+  if (!groupsStore.hasMultipleGroups || groupsStore.activeGroupId) return undefined
+  return groupsStore.groupName(list.group_id)
+}
+
+// Local, reorderable copy of the visible list order. Kept in sync with
+// visibleLists except while a drag is in progress, so a mid-sync-pass
+// update (e.g. total_items ticking over) can't yank a row out from under the
+// user's finger. While filtered to one group, the drag reorders only that
+// group's lists within the slots they already hold.
 const displayedLists = ref<LocalList[]>([])
 const { draggingId, isPointerActive, dragOffsetPx, setItemRef, onPointerDown } = useDragReorder(
   displayedLists,
   (orderedIds) => {
-    void listsStore.reorderLists(orderedIds)
+    const fullIds = listsStore.sortedLists.map((list) => list.id)
+    void listsStore.reorderLists(mergeSubsetOrder(fullIds, orderedIds))
   },
 )
 
 watch(
-  () => listsStore.sortedLists,
+  visibleLists,
   (next) => {
     if (draggingId.value === null) displayedLists.value = [...next]
   },
@@ -45,15 +63,20 @@ const openTasks = computed(() =>
 )
 
 onMounted(() => {
+  groupsStore.loadGroups()
   listsStore.loadLists()
 })
 
-function handleOpenShare(list: LocalList) {
-  sharingList.value = list
-}
-
-function handleCloseShare() {
-  sharingList.value = null
+async function handleMove(groupId: string) {
+  if (!movingList.value) return
+  const listId = movingList.value.id
+  movingList.value = null
+  createError.value = ''
+  try {
+    await listsStore.moveListToGroup(listId, groupId)
+  } catch (err) {
+    createError.value = err instanceof Error ? err.message : 'Failed to move list'
+  }
 }
 
 function handleOpenDelete(list: LocalList) {
@@ -82,7 +105,7 @@ async function handleCreateList() {
   createError.value = ''
   isCreating.value = true
   try {
-    await listsStore.createList(name)
+    await listsStore.createList(name, groupsStore.activeGroupId ?? undefined)
     newListName.value = ''
   } catch (err) {
     createError.value = err instanceof Error ? err.message : 'Failed to create list'
@@ -102,6 +125,8 @@ async function handleCreateList() {
         <span class="mono-num">{{ openTasks }}</span> open {{ openTasks === 1 ? 'item' : 'items' }}
       </p>
     </header>
+
+    <GroupFilter />
 
     <form class="composer" @submit.prevent="handleCreateList">
       <div class="field">
@@ -145,8 +170,9 @@ async function handleCreateList() {
       >
         <ListCard
           :list="list"
+          :group-label="groupLabel(list)"
           :dragging="draggingId === list.id"
-          @share="handleOpenShare(list)"
+          @move="movingList = list"
           @delete="handleOpenDelete(list)"
           @handle-pointerdown="onPointerDown(list.id, $event)"
         />
@@ -155,11 +181,21 @@ async function handleCreateList() {
 
     <div v-else class="empty-state">
       <span class="empty-icon"><AppIcon name="list" :size="34" :stroke="1.7" /></span>
-      <p class="empty-title">No lists yet</p>
+      <p v-if="groupsStore.activeGroupId" class="empty-title">
+        No lists in {{ groupsStore.groupName(groupsStore.activeGroupId) }}
+      </p>
+      <p v-else class="empty-title">No lists yet</p>
       <p class="empty-hint">Name your first list above and start ticking things off.</p>
     </div>
 
-    <ShareListModal v-if="sharingList" :list="sharingList" @close="handleCloseShare" />
+    <MoveToGroupModal
+      v-if="movingList"
+      kind="list"
+      :name="movingList.name"
+      :current-group-id="movingList.group_id"
+      @close="movingList = null"
+      @move="handleMove"
+    />
     <DeleteListModal
       v-if="deletingList"
       :list="deletingList"

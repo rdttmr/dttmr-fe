@@ -54,13 +54,13 @@ describe('ListCard', () => {
 
     await wrapper.find('.menu-trigger-btn').trigger('click')
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(true)
-    expect(wrapper.find('.submenu-item').text()).toContain('Share list')
+    expect(wrapper.find('.submenu-item').text()).toContain('Move to group')
 
     await wrapper.find('.menu-trigger-btn').trigger('click')
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
   })
 
-  it('emits share event when Share list is clicked in submenu', async () => {
+  it('emits move event when Move to group is clicked in submenu', async () => {
     const wrapper = mount(ListCard, {
       props: {
         list: sampleList,
@@ -78,8 +78,8 @@ describe('ListCard', () => {
     await wrapper.find('.menu-trigger-btn').trigger('click')
     await wrapper.find('.submenu-item').trigger('click')
 
-    expect(wrapper.emitted('share')).toBeTruthy()
-    expect(wrapper.emitted('share')?.[0]).toEqual([sampleList])
+    expect(wrapper.emitted('move')).toBeTruthy()
+    expect(wrapper.emitted('move')?.[0]).toEqual([sampleList])
     expect(wrapper.find('.submenu-dropdown').exists()).toBe(false)
   })
 
