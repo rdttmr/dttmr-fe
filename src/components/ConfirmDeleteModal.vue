@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import BaseModal from '@/components/BaseModal.vue'
+import type { IconName } from '@/components/AppIcon.vue'
 
 withDefaults(
   defineProps<{
     title: string
     description: string
     confirmLabel?: string
+    icon?: IconName
   }>(),
   {
     confirmLabel: 'Delete',
+    icon: 'trash',
   },
 )
 
@@ -30,7 +33,7 @@ function handleConfirm() {
   <BaseModal
     :title="title"
     title-id="confirm-delete-modal-title"
-    icon="trash"
+    :icon="icon"
     tone="danger"
     @close="handleClose"
   >

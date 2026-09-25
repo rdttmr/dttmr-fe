@@ -13,6 +13,7 @@ import {
   getGroupMembersApi,
   shareGroupApi,
   joinGroupApi,
+  leaveGroupApi,
   deleteGroupApi,
 } from '@/api/groups'
 
@@ -85,6 +86,10 @@ export const useGroupsStore = defineStore('groups', () => {
     return groups.value.find((g) => g.id === id)?.name
   }
 
+  function myRole(groupId: string): string | undefined {
+    return groups.value.find((g) => g.id === groupId)?.role
+  }
+
   function upsertGroup(record: Group) {
     const existing = groups.value.find((g) => g.id === record.id)
     if (existing) Object.assign(existing, record)
@@ -151,8 +156,13 @@ export const useGroupsStore = defineStore('groups', () => {
   async function createGroup(name: string): Promise<Group> {
     assertOnline('create a group')
     const response = await createGroupApi({ name })
-    // POST /groups reports member_count 0, but the creator is already a member.
-    const created = { ...response, member_count: Math.max(1, response.member_count ?? 0) }
+    // POST /groups reports member_count 0, but the creator is already a member
+    // (and its owner).
+    const created = {
+      ...response,
+      member_count: Math.max(1, response.member_count ?? 0),
+      role: response.role ?? 'owner',
+    }
     await db.groups.put(created)
     upsertGroup(created)
     return created
@@ -182,6 +192,9 @@ export const useGroupsStore = defineStore('groups', () => {
   // instead of a generic 4xx. Everything in a group I'm a member of is
   // visible to me, so the local cache is enough to tell.
   function deleteBlocker(groupId: string): string | null {
+    // Only owners may delete. Not enforced by the backend yet, so the
+    // frontend assumes it.
+    if (myRole(groupId) !== 'owner') return 'Only the group owner can delete it.'
     if (groups.value.length <= 1) return "You can't delete your only group."
     const listCount = useListsStore().lists.filter((l) => l.group_id === groupId).length
     const recipeCount = useRecipesStore().recipes.filter((r) => r.group_id === groupId).length
@@ -203,6 +216,33 @@ export const useGroupsStore = defineStore('groups', () => {
     groups.value = groups.value.filter((g) => g.id !== groupId)
     // The server may have picked a new default if this one was it.
     if (!groups.value.some((g) => g.is_default)) void sync()
+  }
+
+  // Why the user can't leave a group right now, or null if they can. Leaving
+  // the only group would leave nowhere for new lists and recipes to go.
+  // Owners can't leave (assumed ahead of the backend enforcing it).
+  function leaveBlocker(groupId: string): string | null {
+    if (myRole(groupId) === 'owner') {
+      return "You own this group, so you can't leave it. Delete it instead."
+    }
+    if (groups.value.length <= 1 && groups.value[0]?.id === groupId) {
+      return "You can't leave your only group."
+    }
+    return null
+  }
+
+  // Leaving hides the group's lists and recipes, so pull those too; their
+  // pull drops whatever the server no longer reports.
+  async function leaveGroup(groupId: string) {
+    const blocker = leaveBlocker(groupId)
+    if (blocker) throw new Error(blocker)
+    assertOnline('leave a group')
+
+    await leaveGroupApi(groupId)
+    await db.groups.delete(groupId)
+    groups.value = groups.value.filter((g) => g.id !== groupId)
+    await sync()
+    await Promise.all([useListsStore().sync(), useRecipesStore().sync()])
   }
 
   async function getMembers(groupId: string): Promise<GroupMember[]> {
@@ -246,6 +286,8 @@ export const useGroupsStore = defineStore('groups', () => {
     setDefaultGroup,
     deleteBlocker,
     deleteGroup,
+    leaveBlocker,
+    leaveGroup,
     getMembers,
     shareGroup,
     joinGroup,

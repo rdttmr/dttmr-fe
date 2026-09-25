@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { Group } from '@/types/group'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
@@ -7,10 +8,9 @@ import { useDismissableMenu } from '@/composables/useDismissableMenu'
 import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 
-const props = defineProps<{ group: Group }>()
+const props = defineProps<{ group: Group; canDelete?: boolean }>()
 const emit = defineEmits<{
   share: []
-  members: []
   rename: []
   'make-default': []
   delete: []
@@ -33,11 +33,10 @@ const recipeCount = computed(
 const memberCount = computed(() => props.group.member_count ?? 1)
 const hue = computed(() => hueFromString(props.group.name))
 
-function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delete') {
+function select(action: 'share' | 'rename' | 'make-default' | 'delete') {
   isMenuOpen.value = false
   // One emit per literal keeps defineEmits' typing happy.
   if (action === 'share') emit('share')
-  else if (action === 'members') emit('members')
   else if (action === 'rename') emit('rename')
   else if (action === 'make-default') emit('make-default')
   else emit('delete')
@@ -46,21 +45,24 @@ function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delet
 
 <template>
   <div class="group-card card menu-lift" :style="{ '--hue': hue }">
-    <span class="tile" aria-hidden="true">
-      <AppIcon name="users" :size="20" :stroke="2.1" />
-    </span>
+    <RouterLink :to="`/groups/${group.id}`" class="group-card-link">
+      <span class="tile" aria-hidden="true">
+        <AppIcon name="users" :size="20" :stroke="2.1" />
+      </span>
 
-    <div class="group-main">
-      <h3>
-        {{ group.name }}
-        <span v-if="group.is_default" class="pill pill-accent">Default</span>
-      </h3>
-      <p class="meta">
-        {{ memberCount }} {{ memberCount === 1 ? 'member' : 'members' }} · {{ listCount }}
-        {{ listCount === 1 ? 'list' : 'lists' }} · {{ recipeCount }}
-        {{ recipeCount === 1 ? 'recipe' : 'recipes' }}
-      </p>
-    </div>
+      <div class="group-main">
+        <h3>
+          {{ group.name }}
+          <span v-if="group.is_default" class="pill pill-accent">Default</span>
+        </h3>
+        <p class="meta">
+          {{ memberCount }} {{ memberCount === 1 ? 'member' : 'members' }} · {{ listCount }}
+          {{ listCount === 1 ? 'list' : 'lists' }} · {{ recipeCount }}
+          {{ recipeCount === 1 ? 'recipe' : 'recipes' }}
+        </p>
+      </div>
+      <AppIcon name="chevron-right" class="chevron" :size="18" />
+    </RouterLink>
 
     <div ref="menuContainerRef" class="menu-container">
       <button
@@ -80,10 +82,6 @@ function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delet
           <AppIcon name="share" :size="16" />
           <span>Invite someone</span>
         </button>
-        <button type="button" class="submenu-item" role="menuitem" @click="select('members')">
-          <AppIcon name="users" :size="16" />
-          <span>Members</span>
-        </button>
         <button type="button" class="submenu-item" role="menuitem" @click="select('rename')">
           <AppIcon name="edit" :size="16" />
           <span>Rename group</span>
@@ -99,6 +97,7 @@ function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delet
           <span>Make default</span>
         </button>
         <button
+          v-if="canDelete"
           type="button"
           class="submenu-item submenu-item-danger"
           role="menuitem"
@@ -116,9 +115,27 @@ function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delet
 .group-card {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.35rem;
   padding: 0.85rem 0.6rem 0.85rem 0.9rem;
   background-color: var(--c-bg-soft);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.25s var(--ease-out);
+}
+
+.group-card:hover {
+  border-color: var(--c-border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.group-card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .tile {
@@ -160,5 +177,15 @@ function select(action: 'share' | 'members' | 'rename' | 'make-default' | 'delet
 .meta {
   font-size: 0.78rem;
   color: var(--c-text-soft);
+}
+.chevron {
+  flex-shrink: 0;
+  color: var(--c-text-soft);
+  transition: transform 0.2s var(--ease-out);
+}
+
+.group-card:hover .chevron {
+  transform: translateX(3px);
+  color: var(--c-heading);
 }
 </style>

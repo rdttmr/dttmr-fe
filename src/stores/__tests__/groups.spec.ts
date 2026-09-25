@@ -45,6 +45,7 @@ const groupsApiMocks = vi.hoisted(() => ({
   getGroupMembersApi: vi.fn<() => Promise<unknown>>(),
   shareGroupApi: vi.fn<() => Promise<unknown>>(),
   joinGroupApi: vi.fn<() => Promise<unknown>>(),
+  leaveGroupApi: vi.fn<() => Promise<unknown>>(),
   deleteGroupApi: vi.fn<() => Promise<unknown>>(),
 }))
 
@@ -54,8 +55,23 @@ const { useGroupsStore } = await import('../groups')
 const { useListsStore } = await import('../lists')
 const { useRecipesStore } = await import('../recipes')
 
-const personal: Group = { id: 'g-personal', name: 'Personal', is_default: true, member_count: 1 }
-const home: Group = { id: 'g-home', name: 'Home', is_default: false, member_count: 2 }
+const personal: Group = {
+  id: 'g-personal',
+  name: 'Personal',
+  is_default: true,
+  member_count: 1,
+  role: 'owner',
+}
+const home: Group = {
+  id: 'g-home',
+  name: 'Home',
+  is_default: false,
+  member_count: 2,
+  role: 'member',
+}
+
+// A group the current user owns rather than just belongs to.
+const ownedHome: Group = { ...home, role: 'owner' }
 
 describe('useGroupsStore', () => {
   beforeEach(() => {
@@ -116,7 +132,7 @@ describe('useGroupsStore', () => {
 
   it('refuses to delete a group that still has lists or recipes', async () => {
     const store = useGroupsStore()
-    store.groups = [personal, home]
+    store.groups = [personal, ownedHome]
     useListsStore().lists = [{ id: 'l1', name: 'Groceries', group_id: 'g-home' }]
     useRecipesStore().recipes = [{ id: 'r1', name: 'Pancakes', group_id: 'g-home' }]
 
@@ -128,7 +144,7 @@ describe('useGroupsStore', () => {
 
   it('deletes an empty group', async () => {
     groupsApiMocks.deleteGroupApi.mockResolvedValueOnce(undefined)
-    await fakeDb.groups.bulkPut([personal, home])
+    await fakeDb.groups.bulkPut([personal, ownedHome])
     const store = useGroupsStore()
     await store.refresh()
 
@@ -137,6 +153,58 @@ describe('useGroupsStore', () => {
     expect(groupsApiMocks.deleteGroupApi).toHaveBeenCalledWith('g-home')
     expect(store.groups.map((g) => g.id)).toEqual(['g-personal'])
     expect(await fakeDb.groups.toArray()).toHaveLength(1)
+  })
+
+  it('only lets owners delete a group', async () => {
+    const store = useGroupsStore()
+    store.groups = [personal, home, { id: 'g-unknown', name: 'Unknown' }]
+
+    await expect(store.deleteGroup('g-unknown')).rejects.toThrow('Only the group owner')
+    await expect(store.deleteGroup('g-home')).rejects.toThrow('Only the group owner')
+    expect(groupsApiMocks.deleteGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('refuses to let the owner leave', async () => {
+    const store = useGroupsStore()
+    store.groups = [personal, ownedHome]
+
+    await expect(store.leaveGroup('g-home')).rejects.toThrow("can't leave")
+    expect(groupsApiMocks.leaveGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('knows the creator owns a new group', async () => {
+    groupsApiMocks.createGroupApi.mockResolvedValueOnce({ id: 'g-new', name: 'New' })
+    const store = useGroupsStore()
+
+    await store.createGroup('New')
+
+    expect(store.groups.find((g) => g.id === 'g-new')?.role).toBe('owner')
+  })
+
+  it('refuses to leave the only group', async () => {
+    const store = useGroupsStore()
+    store.groups = [{ ...personal, role: 'member' }]
+
+    await expect(store.leaveGroup('g-personal')).rejects.toThrow('only group')
+    expect(groupsApiMocks.leaveGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('leaves a group, drops it locally and pulls lists and recipes', async () => {
+    groupsApiMocks.leaveGroupApi.mockResolvedValueOnce(undefined)
+    groupsApiMocks.getGroupsApi.mockResolvedValueOnce([personal])
+    await fakeDb.groups.bulkPut([personal, home])
+    const store = useGroupsStore()
+    await store.refresh()
+    const listsSync = vi.spyOn(useListsStore(), 'sync').mockResolvedValue()
+    const recipesSync = vi.spyOn(useRecipesStore(), 'sync').mockResolvedValue()
+
+    await store.leaveGroup('g-home')
+
+    expect(groupsApiMocks.leaveGroupApi).toHaveBeenCalledWith('g-home')
+    expect(store.groups.map((g) => g.id)).toEqual(['g-personal'])
+    expect((await fakeDb.groups.toArray()).map((g) => g.id)).toEqual(['g-personal'])
+    expect(listsSync).toHaveBeenCalled()
+    expect(recipesSync).toHaveBeenCalled()
   })
 
   it('counts the creator as a member of a new group', async () => {

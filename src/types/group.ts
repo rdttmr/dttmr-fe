@@ -4,6 +4,8 @@ export interface Group {
   // Where lists/recipes created without an explicit group_id end up.
   is_default?: boolean
   member_count?: number
+  // The current user's role in this group: 'owner' or 'member'.
+  role?: string
   created_at?: string
   modified_at?: string
 }
@@ -12,6 +14,9 @@ export interface GroupMember {
   id: string
   name: string
   email: string
+  // 'owner' for the creator, 'member' for everyone who joined via a share code.
+  role?: string
+  // When the member joined the group.
   created_at?: string
 }
 
