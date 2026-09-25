@@ -142,6 +142,13 @@ vi.mock('@/api/lists', () => listsApiMocks)
 const { useListsStore } = await import('../lists')
 const { useGroupsStore } = await import('../groups')
 const { useRecipesStore } = await import('../recipes')
+const { useAuthStore } = await import('../auth')
+const { PULL_FRESH_MS } = await import('@/utils/pullFreshness')
+
+// Only the claims matter here; the app never verifies the signature.
+function fakeJwt(userId: string) {
+  return `header.${btoa(JSON.stringify({ user_id: userId }))}.signature`
+}
 
 describe('useListsStore', () => {
   beforeEach(async () => {
@@ -857,5 +864,210 @@ describe('useListsStore', () => {
 
     expect(listsApiMocks.getListItemsApi).toHaveBeenCalledWith('list-1')
     expect(store.listItems.find((item) => item.id === 'server-item-1')).toBeDefined()
+  })
+
+  describe('pull freshness', () => {
+    it('skips GET /lists while the last pull is fresh, but still pushes queued edits', async () => {
+      listsApiMocks.getListsApi.mockResolvedValue([
+        { id: 'list-1', name: 'Groceries', total_items: 1, completed_items: 0 },
+      ])
+      await fakeDb.listItems.put({
+        id: 'item-1',
+        list_id: 'list-1',
+        title: 'Milk',
+        is_completed: false,
+      })
+      listsApiMocks.setListItemCompletedApi.mockResolvedValue(undefined)
+
+      const store = useListsStore()
+      await store.sync()
+      await store.sync()
+      await store.setListItemCompleted('item-1', true)
+      await store.sync()
+
+      expect(listsApiMocks.getListsApi).toHaveBeenCalledTimes(1)
+      expect(listsApiMocks.setListItemCompletedApi).toHaveBeenCalledTimes(1)
+      expect(store.pendingCount).toBe(0)
+    })
+
+    it('pulls again once the window has passed, or right away when forced', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+      const store = useListsStore()
+
+      await store.sync()
+      await store.sync({ force: true })
+      expect(listsApiMocks.getListsApi).toHaveBeenCalledTimes(2)
+
+      now.mockReturnValue(1_000_000 + PULL_FRESH_MS)
+      await store.sync()
+      expect(listsApiMocks.getListsApi).toHaveBeenCalledTimes(3)
+    })
+
+    it('does not count a failed pull as fresh', async () => {
+      listsApiMocks.getListsApi.mockRejectedValueOnce(new Error('Network error'))
+      const store = useListsStore()
+
+      await store.sync()
+      await store.sync()
+
+      expect(listsApiMocks.getListsApi).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not let one account's fresh pull stand in for another's after a re-login", async () => {
+      const auth = useAuthStore()
+      auth.setTokens({ access_token: fakeJwt('user-a'), refresh_token: 'r' })
+      const store = useListsStore()
+      await store.sync()
+
+      auth.setTokens({ access_token: fakeJwt('user-b'), refresh_token: 'r' })
+      await store.sync()
+
+      expect(listsApiMocks.getListsApi).toHaveBeenCalledTimes(2)
+    })
+
+    it("skips re-pulling a list's items while fresh, and recounts the list from them", async () => {
+      await fakeDb.lists.put({
+        id: 'list-1',
+        name: 'Groceries',
+        total_items: 5,
+        completed_items: 5,
+      })
+      listsApiMocks.getListItemsApi.mockResolvedValue([
+        { id: 'item-1', list_id: 'list-1', title: 'Milk', is_completed: true },
+        { id: 'item-2', list_id: 'list-1', title: 'Eggs', is_completed: false },
+      ])
+
+      const store = useListsStore()
+      await store.ensureLoaded()
+      await store.pullListItems('list-1')
+      await store.pullListItems('list-1')
+
+      expect(listsApiMocks.getListItemsApi).toHaveBeenCalledTimes(1)
+      const list = store.lists.find((entry) => entry.id === 'list-1')
+      expect(list?.total_items).toBe(2)
+      expect(list?.completed_items).toBe(1)
+
+      await store.pullListItems('list-1', { force: true })
+      expect(listsApiMocks.getListItemsApi).toHaveBeenCalledTimes(2)
+    })
+
+    it("re-pulls a list's items once GET /lists shows its counts changed elsewhere", async () => {
+      await fakeDb.lists.put({
+        id: 'list-1',
+        name: 'Groceries',
+        total_items: 0,
+        completed_items: 0,
+      })
+      const store = useListsStore()
+      await store.ensureLoaded()
+      await store.pullListItems('list-1')
+
+      listsApiMocks.getListsApi.mockResolvedValueOnce([
+        { id: 'list-1', name: 'Groceries', total_items: 1, completed_items: 0 },
+      ])
+      await store.sync()
+      await store.pullListItems('list-1')
+
+      expect(listsApiMocks.getListItemsApi).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('local item counts', () => {
+    beforeEach(async () => {
+      await fakeDb.lists.put({
+        id: 'list-1',
+        name: 'Groceries',
+        total_items: 2,
+        completed_items: 1,
+      })
+      await fakeDb.listItems.put({
+        id: 'item-1',
+        list_id: 'list-1',
+        title: 'Milk',
+        is_completed: true,
+      })
+      await fakeDb.listItems.put({
+        id: 'item-2',
+        list_id: 'list-1',
+        title: 'Eggs',
+        is_completed: false,
+      })
+    })
+
+    function counts(store: ReturnType<typeof useListsStore>) {
+      const list = store.lists.find((entry) => entry.id === 'list-1')
+      return [list?.total_items, list?.completed_items]
+    }
+
+    it('updates counts when items are created, completed and deleted', async () => {
+      const store = useListsStore()
+      await store.ensureLoaded()
+
+      await store.createListItem('list-1', 'Bread')
+      expect(counts(store)).toEqual([3, 1])
+      await store.setListItemCompleted('item-2', true)
+      expect(counts(store)).toEqual([3, 2])
+      // Completing an item that already is completed changes nothing.
+      await store.setListItemCompleted('item-2', true)
+      expect(counts(store)).toEqual([3, 2])
+      await store.deleteListItem('item-1')
+      expect(counts(store)).toEqual([2, 1])
+      expect((await fakeDb.lists.get('list-1'))?.total_items).toBe(2)
+    })
+
+    it("keeps local counts through a pull while the server hasn't seen an item edit yet", async () => {
+      listsApiMocks.deleteListItemApi.mockRejectedValue(new Error('Network error'))
+      listsApiMocks.getListsApi.mockResolvedValue([
+        { id: 'list-1', name: 'Groceries', total_items: 2, completed_items: 1 },
+      ])
+
+      const store = useListsStore()
+      await store.ensureLoaded()
+      await store.deleteListItem('item-2')
+      await store.sync()
+
+      expect(listsApiMocks.getListsApi).toHaveBeenCalled()
+      expect(counts(store)).toEqual([1, 1])
+    })
+  })
+
+  it("sends an item added to a list created offline with the list's server id", async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-list-1', name: 'Groceries' })
+    listsApiMocks.createListItemApi.mockResolvedValueOnce({
+      id: 'server-item-1',
+      list_id: 'server-list-1',
+      title: 'Milk',
+      is_completed: false,
+    })
+    listsApiMocks.getListsApi.mockResolvedValue([{ id: 'server-list-1', name: 'Groceries' }])
+
+    const store = useListsStore()
+    const list = await store.createList('Groceries')
+    await store.createListItem(list.id, 'Milk')
+    await store.sync()
+
+    expect(listsApiMocks.createListItemApi).toHaveBeenCalledWith({
+      list_id: 'server-list-1',
+      title: 'Milk',
+    })
+  })
+
+  it("leaves a queued item delete's item id alone when its list gets its server id", async () => {
+    listsApiMocks.createListApi.mockResolvedValueOnce({ id: 'server-list-1', name: 'Groceries' })
+    listsApiMocks.deleteListItemApi.mockResolvedValueOnce(undefined)
+    listsApiMocks.getListsApi.mockResolvedValue([{ id: 'server-list-1', name: 'Groceries' }])
+
+    const store = useListsStore()
+    const list = await store.createList('Groceries')
+    await fakeDb.listItems.put({
+      id: 'item-9',
+      list_id: list.id,
+      title: 'Milk',
+      is_completed: false,
+    })
+    await store.deleteListItem('item-9')
+    await store.sync()
+
+    expect(listsApiMocks.deleteListItemApi).toHaveBeenCalledWith('item-9')
   })
 })

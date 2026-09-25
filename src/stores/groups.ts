@@ -16,6 +16,7 @@ import {
   leaveGroupApi,
   deleteGroupApi,
 } from '@/api/groups'
+import { createPullTracker } from '@/utils/pullFreshness'
 
 // The group filter on the Lists and Recipes pages is a per-device view
 // preference, so it lives in localStorage rather than in Dexie.
@@ -119,13 +120,21 @@ export const useGroupsStore = defineStore('groups', () => {
   }
 
   let ongoingSync: Promise<void> | null = null
+  const pulls = createPullTracker(() => useAuthStore().currentUser?.user_id)
 
   // Mirrors GET /groups into Dexie. Named sync() for symmetry with the other
-  // stores, but there is no queue to drain, only a pull.
-  async function sync(): Promise<void> {
-    if (ongoingSync) return ongoingSync
+  // stores, but there is no queue to drain, only a pull - skipped while the
+  // last one is fresh, same as the lists and recipes stores. `force` is for
+  // callers that just changed the user's groups on the server.
+  async function sync(options: { force?: boolean } = {}): Promise<void> {
+    if (ongoingSync) {
+      if (!options.force) return ongoingSync
+      await ongoingSync
+      return sync(options)
+    }
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     if (!useAuthStore().isAuthenticated) return
+    if (!options.force && pulls.isFresh()) return
 
     ongoingSync = pullFromServer().finally(() => {
       ongoingSync = null
@@ -148,6 +157,7 @@ export const useGroupsStore = defineStore('groups', () => {
       groups.value = groups.value.filter((g) => serverIds.has(g.id))
       isLoaded.value = true
       error.value = null
+      pulls.markPulled()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load groups'
     }
@@ -215,7 +225,7 @@ export const useGroupsStore = defineStore('groups', () => {
     await db.groups.delete(groupId)
     groups.value = groups.value.filter((g) => g.id !== groupId)
     // The server may have picked a new default if this one was it.
-    if (!groups.value.some((g) => g.is_default)) void sync()
+    if (!groups.value.some((g) => g.is_default)) void sync({ force: true })
   }
 
   // Why the user can't leave a group right now, or null if they can. Leaving
@@ -241,8 +251,11 @@ export const useGroupsStore = defineStore('groups', () => {
     await leaveGroupApi(groupId)
     await db.groups.delete(groupId)
     groups.value = groups.value.filter((g) => g.id !== groupId)
-    await sync()
-    await Promise.all([useListsStore().sync(), useRecipesStore().sync()])
+    await sync({ force: true })
+    await Promise.all([
+      useListsStore().sync({ force: true }),
+      useRecipesStore().sync({ force: true }),
+    ])
   }
 
   async function getMembers(groupId: string): Promise<GroupMember[]> {
@@ -263,8 +276,11 @@ export const useGroupsStore = defineStore('groups', () => {
     await ensureLoaded()
     const before = new Set(groups.value.map((g) => g.id))
     await joinGroupApi(code)
-    await sync()
-    await Promise.all([useListsStore().sync(), useRecipesStore().sync()])
+    await sync({ force: true })
+    await Promise.all([
+      useListsStore().sync({ force: true }),
+      useRecipesStore().sync({ force: true }),
+    ])
     return groups.value.find((g) => !before.has(g.id)) ?? null
   }
 

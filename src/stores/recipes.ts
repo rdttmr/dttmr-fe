@@ -26,6 +26,7 @@ import {
 } from '@/api/recipes'
 import { isServerRejection } from '@/api/http'
 import { rebaseOrder } from '@/utils/orderRebase'
+import { createPullTracker } from '@/utils/pullFreshness'
 
 // Mirrors the debounce in stores/lists.ts: collapses a burst of edits
 // (checking several items into a recipe in a row) into a single sync pass.
@@ -60,6 +61,10 @@ export const useRecipesStore = defineStore('recipes', () => {
   const isSyncing = ref(false)
   const error = ref<string | null>(null)
   const pendingCount = ref(0)
+
+  // Same as in stores/lists.ts: when GET /recipes (key "") and each
+  // GET /recipes/{id} (key: the recipe id) last succeeded.
+  const pulls = createPullTracker(() => useAuthStore().currentUser?.user_id)
 
   // Recipes carry a server-assigned `position`, rearranged via
   // reorderRecipes(). New recipes (local-only or freshly synced) always come
@@ -354,6 +359,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       await db.listItems.update(item.id, patch)
       const existing = listsStore.listItems.find((entry) => entry.id === item.id)
       if (existing) Object.assign(existing, patch)
+      await listsStore.adjustListCounts(item.list_id, { completed: -1 })
     }
 
     await enqueue({
@@ -410,7 +416,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     recipe.group_id = groupId
 
     await removeLinksAcrossGroups()
-    await pullRecipeItems(recipe.id)
+    await pullRecipeItems(recipe.id, { force: true })
   }
 
   // Remaps a client-generated temporary recipe id to the server-assigned id
@@ -532,6 +538,7 @@ export const useRecipesStore = defineStore('recipes', () => {
         // The server is authoritative on which items ended up uncompleted,
         // so reconcile by re-pulling rather than trusting the optimistic
         // local flip.
+        await settleUncheckedItems(entry.payload.id)
         await pullRecipeItemsInternal(entry.payload.id)
         break
       }
@@ -593,6 +600,8 @@ export const useRecipesStore = defineStore('recipes', () => {
       pendingCount.value = Math.max(0, pendingCount.value - 1)
     }
     if (entry.type === 'orderRecipes') await settleRecipeOrder(entry.payload.recipe_ids)
+    // The pull that follows this pass must actually happen for that.
+    pulls.invalidate()
     error.value = `Couldn't save the new recipe order (${message}). Showing the server's order instead.`
   }
 
@@ -657,14 +666,21 @@ export const useRecipesStore = defineStore('recipes', () => {
 
   let ongoingSync: Promise<void> | null = null
 
-  async function sync(): Promise<void> {
+  // Same freshness rules and `force` as sync() in stores/lists.ts.
+  async function sync(options: { force?: boolean } = {}): Promise<void> {
     if (ongoingSync) {
-      return ongoingSync
+      if (!options.force) return ongoingSync
+      await ongoingSync.catch(() => undefined)
+      return sync(options)
     }
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     if (!useAuthStore().isAuthenticated) return
 
-    ongoingSync = enqueueOperation(() => runSync().then(() => pullRecipesFromServer()))
+    if (options.force) pulls.invalidate()
+    ongoingSync = enqueueOperation(async () => {
+      await runSync()
+      if (!pulls.isFresh()) await pullRecipesFromServer()
+    })
     try {
       await ongoingSync
     } finally {
@@ -697,6 +713,15 @@ export const useRecipesStore = defineStore('recipes', () => {
           const keepLocalCount =
             existingRecipe?.total_items !== undefined &&
             recipesWithPendingEdits.has(serverRecipe.id)
+          // Same as in stores/lists.ts: a count that moved without a local
+          // edit means the recipe's cached membership is out of date.
+          if (
+            existingRecipe &&
+            !keepLocalCount &&
+            existingRecipe.total_items !== serverRecipe.total_items
+          ) {
+            pulls.invalidate(serverRecipe.id)
+          }
           toPut.push({
             ...serverRecipe,
             ...(keepLocalCount ? { total_items: existingRecipe.total_items } : {}),
@@ -728,6 +753,7 @@ export const useRecipesStore = defineStore('recipes', () => {
           (link) => !deletedIds.has(link.recipeId),
         )
       }
+      pulls.markPulled()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load recipes from server'
     }
@@ -738,6 +764,30 @@ export const useRecipesStore = defineStore('recipes', () => {
   // listItems, the same way pullListItemsInternal there does, so a recipe
   // item stays a first-class list item you can edit/complete from either
   // screen.
+  // uncheckRecipe() marked the items it flipped as pendingSync, and the server
+  // has now applied the uncheck, so the flag comes off and the pull that
+  // follows can bring in the server's state. Items that also have an edit of
+  // their own queued (a lists-store operation) stay marked until that syncs.
+  async function settleUncheckedItems(recipeId: string) {
+    const listsStore = useListsStore()
+    const [links, queued] = await Promise.all([
+      db.recipeItems.where('recipeId').equals(recipeId).toArray(),
+      db.syncQueue
+        .filter((entry) => !!entry.localListItemId && !RECIPE_OP_TYPES.includes(entry.type))
+        .toArray(),
+    ])
+    const itemsWithQueuedEdits = new Set(queued.map((entry) => entry.localListItemId))
+
+    for (const link of links) {
+      if (itemsWithQueuedEdits.has(link.listItemId)) continue
+      const item = await db.listItems.get(link.listItemId)
+      if (!item?.pendingSync) continue
+      await db.listItems.update(item.id, { pendingSync: false })
+      const existing = listsStore.listItems.find((entry) => entry.id === item.id)
+      if (existing) existing.pendingSync = false
+    }
+  }
+
   async function pullRecipeItemsInternal(recipeId: string): Promise<void> {
     const listsStore = useListsStore()
 
@@ -749,7 +799,18 @@ export const useRecipesStore = defineStore('recipes', () => {
       const localLinkedIds = new Map(localLinks.map((link) => [link.listItemId, link]))
       const serverItemIds = new Set(serverItems.map((item) => item.id))
 
-      const itemsToPut = serverItems.map((item) => ({ ...item, pendingSync: false }))
+      // Same rule as pullListItemsInternal in stores/lists.ts: an item with
+      // local edits the server hasn't seen yet keeps them.
+      const localItems = await db.listItems
+        .where('id')
+        .anyOf([...serverItemIds])
+        .toArray()
+      const pendingItemIds = new Set(
+        localItems.filter((item) => item.pendingSync).map((item) => item.id),
+      )
+      const itemsToPut = serverItems
+        .filter((item) => !pendingItemIds.has(item.id))
+        .map((item) => ({ ...item, pendingSync: false }))
       if (itemsToPut.length > 0) {
         await db.listItems.bulkPut(itemsToPut)
         for (const item of itemsToPut) listsStore.upsertListItem(item)
@@ -778,14 +839,23 @@ export const useRecipesStore = defineStore('recipes', () => {
       await db.recipes.update(recipeId, { total_items: total })
       const recipe = recipes.value.find((entry) => entry.id === recipeId)
       if (recipe) recipe.total_items = total
+
+      pulls.markPulled(recipeId)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load recipe items from server'
     }
   }
 
-  async function pullRecipeItems(recipeId: string): Promise<void> {
+  async function pullRecipeItems(
+    recipeId: string,
+    options: { force?: boolean } = {},
+  ): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
-    return enqueueOperation(() => pullRecipeItemsInternal(recipeId))
+    return enqueueOperation(() =>
+      options.force || !pulls.isFresh(recipeId)
+        ? pullRecipeItemsInternal(recipeId)
+        : Promise.resolve(),
+    )
   }
 
   async function loadRecipeItems(recipeId: string) {
