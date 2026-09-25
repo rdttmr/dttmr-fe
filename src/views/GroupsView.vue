@@ -7,7 +7,6 @@ import type { Group } from '@/types/group'
 import AppIcon from '@/components/AppIcon.vue'
 import GroupCard from '@/components/GroupCard.vue'
 import ShareGroupModal from '@/components/ShareGroupModal.vue'
-import GroupMembersModal from '@/components/GroupMembersModal.vue'
 import RenameModal from '@/components/RenameModal.vue'
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue'
 
@@ -19,7 +18,6 @@ const newGroupName = ref('')
 const isCreating = ref(false)
 const pageError = ref('')
 const sharingGroup = ref<Group | null>(null)
-const membersGroup = ref<Group | null>(null)
 const renamingGroup = ref<Group | null>(null)
 const deletingGroup = ref<Group | null>(null)
 
@@ -119,7 +117,6 @@ async function handleConfirmDelete() {
         <GroupCard
           :group="group"
           @share="sharingGroup = group"
-          @members="membersGroup = group"
           @rename="renamingGroup = group"
           @make-default="handleMakeDefault(group)"
           @delete="handleOpenDelete(group)"
@@ -135,7 +132,6 @@ async function handleConfirmDelete() {
     </p>
 
     <ShareGroupModal v-if="sharingGroup" :group="sharingGroup" @close="sharingGroup = null" />
-    <GroupMembersModal v-if="membersGroup" :group="membersGroup" @close="membersGroup = null" />
     <RenameModal
       v-if="renamingGroup"
       kind="group"

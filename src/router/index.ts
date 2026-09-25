@@ -51,6 +51,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/groups/:id',
+      name: 'group-detail',
+      component: () => import('../views/GroupDetailView.vue'),
+      meta: { requiresAuth: true },
+      props: true,
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
