@@ -63,6 +63,13 @@ export async function joinGroupApi(code: string): Promise<void> {
   }
 }
 
+export async function leaveGroupApi(groupId: string): Promise<void> {
+  const response = await apiClient.post(`/groups/${groupId}/leave`)
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, 'Failed to leave group'))
+  }
+}
+
 export async function deleteGroupApi(groupId: string): Promise<void> {
   const response = await apiClient.delete(`/groups/${groupId}`)
   if (!response.ok) {

@@ -24,6 +24,7 @@ const authStore = useAuthStore()
 const showShareModal = ref(false)
 const showRenameModal = ref(false)
 const showDeleteModal = ref(false)
+const showLeaveModal = ref(false)
 const actionError = ref('')
 const {
   isOpen: isMenuOpen,
@@ -61,6 +62,7 @@ const listCount = computed(
 const recipeCount = computed(
   () => recipesStore.recipes.filter((recipe) => recipe.group_id === props.id).length,
 )
+const myRole = computed(() => group.value?.role)
 const hue = computed(() => hueFromString(group.value?.name ?? ''))
 
 async function loadMembers() {
@@ -77,6 +79,14 @@ async function loadMembers() {
 
 function initial(member: GroupMember): string {
   return (member.name || member.email).trim().charAt(0).toUpperCase() || '?'
+}
+
+const joinedFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+
+function joinedLabel(member: GroupMember): string {
+  if (!member.created_at) return ''
+  const joined = new Date(member.created_at)
+  return Number.isNaN(joined.getTime()) ? '' : `Joined ${joinedFormat.format(joined)}`
 }
 
 async function run(action: () => Promise<unknown>, fallback: string): Promise<boolean> {
@@ -115,6 +125,24 @@ function handleOpenDelete() {
   }
   actionError.value = ''
   showDeleteModal.value = true
+}
+
+function handleOpenLeave() {
+  isMenuOpen.value = false
+  const blocker = groupsStore.leaveBlocker(props.id)
+  if (blocker) {
+    actionError.value = blocker
+    return
+  }
+  actionError.value = ''
+  showLeaveModal.value = true
+}
+
+async function handleConfirmLeave() {
+  showLeaveModal.value = false
+  if (await run(() => groupsStore.leaveGroup(props.id), 'Failed to leave group')) {
+    router.push('/groups')
+  }
 }
 
 async function handleConfirmDelete() {
@@ -176,6 +204,17 @@ async function handleConfirmDelete() {
                 <span>Make default</span>
               </button>
               <button
+                v-if="myRole && myRole !== 'owner'"
+                type="button"
+                class="submenu-item submenu-item-danger"
+                role="menuitem"
+                @click="handleOpenLeave"
+              >
+                <AppIcon name="logout" :size="16" />
+                <span>Leave group</span>
+              </button>
+              <button
+                v-if="myRole === 'owner'"
                 type="button"
                 class="submenu-item submenu-item-danger"
                 role="menuitem"
@@ -215,9 +254,13 @@ async function handleConfirmDelete() {
             <span class="member-main">
               <span class="member-name">
                 {{ member.name || member.email }}
+                <span v-if="member.role === 'owner'" class="pill pill-accent">Owner</span>
                 <span v-if="member.email === authStore.email" class="pill">You</span>
               </span>
               <span class="member-email">{{ member.email }}</span>
+              <span v-if="joinedLabel(member)" class="member-joined">{{
+                joinedLabel(member)
+              }}</span>
             </span>
           </li>
         </ul>
@@ -235,6 +278,15 @@ async function handleConfirmDelete() {
         :current-name="group.name"
         @close="showRenameModal = false"
         @save="handleRename"
+      />
+      <ConfirmDeleteModal
+        v-if="showLeaveModal"
+        :title="`Leave &quot;${group.name}&quot;?`"
+        description="Its lists and recipes disappear from your devices. You'll need a new invite to rejoin."
+        confirm-label="Leave"
+        icon="logout"
+        @close="showLeaveModal = false"
+        @confirm="handleConfirmLeave"
       />
       <ConfirmDeleteModal
         v-if="showDeleteModal"
@@ -381,6 +433,11 @@ async function handleConfirmDelete() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.member-joined {
+  font-size: 0.72rem;
+  color: var(--c-text-soft);
 }
 
 .members-error {

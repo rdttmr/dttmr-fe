@@ -116,6 +116,7 @@ async function handleConfirmDelete() {
       >
         <GroupCard
           :group="group"
+          :can-delete="group.role === 'owner'"
           @share="sharingGroup = group"
           @rename="renamingGroup = group"
           @make-default="handleMakeDefault(group)"

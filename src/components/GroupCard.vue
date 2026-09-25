@@ -8,7 +8,7 @@ import { useDismissableMenu } from '@/composables/useDismissableMenu'
 import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 
-const props = defineProps<{ group: Group }>()
+const props = defineProps<{ group: Group; canDelete?: boolean }>()
 const emit = defineEmits<{
   share: []
   rename: []
@@ -97,6 +97,7 @@ function select(action: 'share' | 'rename' | 'make-default' | 'delete') {
           <span>Make default</span>
         </button>
         <button
+          v-if="canDelete"
           type="button"
           class="submenu-item submenu-item-danger"
           role="menuitem"
