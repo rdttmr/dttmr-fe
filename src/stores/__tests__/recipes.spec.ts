@@ -230,6 +230,25 @@ describe('useRecipesStore', () => {
     localStorage.clear()
   })
 
+  it("shows a recipe's items from local storage even when the lists store hasn't been loaded", async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    await fakeDb.listItems.put({
+      id: 'item-1',
+      list_id: 'list-1',
+      title: 'Flour',
+      is_completed: false,
+      pendingSync: false,
+    })
+    await fakeDb.recipes.put({ id: 'recipe-1', name: 'Pancakes', pendingSync: false })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-1', pendingSync: false })
+
+    const store = useRecipesStore()
+    await store.loadRecipeItems('recipe-1')
+
+    expect(store.itemsForRecipe('recipe-1').map((item) => item.title)).toEqual(['Flour'])
+    expect(recipesApiMocks.getRecipeItemsApi).not.toHaveBeenCalled()
+  })
+
   it('renames a recipe created offline against its server id once the create has synced', async () => {
     recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-r-1', name: 'Pancakes' })
     recipesApiMocks.renameRecipeApi.mockResolvedValueOnce(undefined)

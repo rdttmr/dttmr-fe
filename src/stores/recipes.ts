@@ -138,6 +138,10 @@ export const useRecipesStore = defineStore('recipes', () => {
   }
 
   async function refresh() {
+    // Recipe items are resolved against the lists store's listItems (see
+    // itemsForRecipe), so those have to be loaded from Dexie too - otherwise a
+    // recipe opened before any list shows up empty until the server pull lands.
+    await useListsStore().ensureLoaded()
     recipes.value = await db.recipes.toArray()
     recipeItemLinks.value = await db.recipeItems.toArray()
     pendingCount.value = await db.syncQueue.where('type').anyOf(RECIPE_OP_TYPES).count()
