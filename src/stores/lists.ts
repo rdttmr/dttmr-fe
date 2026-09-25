@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useRecipesStore } from '@/stores/recipes'
+import { useGroupsStore } from '@/stores/groups'
 import {
   db,
   type LocalList,
@@ -18,8 +19,7 @@ import {
   updateListItemTitleApi,
   renameListApi,
   setListItemCompletedApi,
-  addUserToListApi,
-  removeUserFromListApi,
+  setListGroupApi,
   deleteListApi,
   deleteListItemApi,
   orderListsApi,
@@ -169,12 +169,15 @@ export const useListsStore = defineStore('lists', () => {
     }, SYNC_DEBOUNCE_MS)
   }
 
-  async function createList(name: string): Promise<LocalList> {
+  // Without a groupId the server puts the list into the user's default
+  // group; the local row assumes the same so group filters show it right away.
+  async function createList(name: string, groupId?: string): Promise<LocalList> {
     const now = new Date().toISOString()
     const id = generateId()
     const localList: LocalList = {
       id,
       clientId: id,
+      group_id: groupId ?? useGroupsStore().defaultGroup?.id,
       name,
       created_at: now,
       modified_at: now,
@@ -185,7 +188,7 @@ export const useListsStore = defineStore('lists', () => {
     upsertList(localList)
     await enqueue({
       type: 'createList',
-      payload: { name },
+      payload: groupId ? { name, group_id: groupId } : { name },
       localListId: localList.id,
     })
     scheduleSync()
@@ -268,22 +271,31 @@ export const useListsStore = defineStore('lists', () => {
     scheduleSync()
   }
 
-  async function addUserToList(listId: string, email: string) {
+  // Moving is online-only, like group management: the server drops recipe
+  // links that would now cross groups, and it's simpler to mirror that once
+  // it happened than to replay it offline. Queued edits are flushed first so
+  // a list created offline has its server id by the time it's moved.
+  async function moveListToGroup(listId: string, groupId: string) {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new Error('Cannot share list while offline')
+      throw new Error('Cannot move a list while offline')
     }
-    await addUserToListApi({ list_id: listId, email })
-  }
 
-  // Sharing/unsharing a list has no local representation to keep
-  // optimistically in sync (there's no cached "shared users" list), so
-  // there's nothing offline queuing would buy here - both directions of
-  // this mutation go straight to the server, same as addUserToList.
-  async function removeUserFromList(listId: string, email: string) {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      throw new Error('Cannot remove user from list while offline')
+    const clientId = lists.value.find((entry) => entry.id === listId)?.clientId ?? listId
+    await sync()
+    const list = lists.value.find((entry) => entry.id === clientId || entry.clientId === clientId)
+    if (!list) throw new Error('List not found')
+    const pendingCreates = await db.syncQueue.where('type').equals('createList').toArray()
+    if (pendingCreates.some((entry) => entry.localListId === list.id)) {
+      throw new Error("This list hasn't synced yet. Try again once it has.")
     }
-    await removeUserFromListApi({ list_id: listId, email })
+
+    await setListGroupApi(list.id, { group_id: groupId })
+    await db.lists.update(list.id, { group_id: groupId })
+    list.group_id = groupId
+
+    const recipesStore = useRecipesStore()
+    await recipesStore.removeLinksAcrossGroups()
+    void recipesStore.sync()
   }
 
   async function deleteList(listId: string) {
@@ -773,8 +785,7 @@ export const useListsStore = defineStore('lists', () => {
     renameList,
     updateListItemTitle,
     setListItemCompleted,
-    addUserToList,
-    removeUserFromList,
+    moveListToGroup,
     deleteList,
     deleteListItem,
     reorderLists,

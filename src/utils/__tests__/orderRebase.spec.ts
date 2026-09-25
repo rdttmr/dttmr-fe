@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rebaseOrder } from '../orderRebase'
+import { rebaseOrder, mergeSubsetOrder } from '../orderRebase'
 
 describe('rebaseOrder', () => {
   it('returns the intended order unchanged when it already matches the server', () => {
@@ -32,5 +32,22 @@ describe('rebaseOrder', () => {
     rebaseOrder(intended, server)
     expect(intended).toEqual(['b', 'a'])
     expect(server).toEqual([{ id: 'a' }, { id: 'b' }])
+  })
+})
+
+describe('mergeSubsetOrder', () => {
+  it('reorders the subset within the slots it holds and leaves the rest in place', () => {
+    // a, c and e are the visible (filtered) ids; the user dragged e to the top.
+    expect(mergeSubsetOrder(['a', 'b', 'c', 'd', 'e'], ['e', 'a', 'c'])).toEqual([
+      'e',
+      'b',
+      'a',
+      'd',
+      'c',
+    ])
+  })
+
+  it('returns the full order unchanged when the subset keeps its order', () => {
+    expect(mergeSubsetOrder(['a', 'b', 'c'], ['a', 'c'])).toEqual(['a', 'b', 'c'])
   })
 })

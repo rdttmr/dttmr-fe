@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ListsView from '../ListsView.vue'
 import { useListsStore } from '@/stores/lists'
+import { useGroupsStore } from '@/stores/groups'
 import type { LocalList } from '@/database/db'
 
 describe('ListsView', () => {
@@ -11,9 +12,10 @@ describe('ListsView', () => {
     vi.restoreAllMocks()
     const listsStore = useListsStore()
     vi.spyOn(listsStore, 'loadLists').mockImplementation(async () => {})
+    vi.spyOn(useGroupsStore(), 'loadGroups').mockImplementation(async () => {})
   })
 
-  it('renders lists and opens share modal when list card emits share', async () => {
+  it('renders lists and opens the move modal when a list card emits move', async () => {
     const listsStore = useListsStore()
     const sampleList: LocalList = {
       id: 'list-1',
@@ -35,14 +37,13 @@ describe('ListsView', () => {
     })
 
     expect(wrapper.text()).toContain('Shopping')
-    expect(wrapper.findComponent({ name: 'ShareListModal' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MoveToGroupModal' }).exists()).toBe(false)
 
-    // Trigger share from ListCard
     await wrapper.find('.menu-trigger-btn').trigger('click')
     await wrapper.find('.submenu-item').trigger('click')
 
-    expect(wrapper.findComponent({ name: 'ShareListModal' }).exists()).toBe(true)
-    expect(wrapper.find('#share-modal-title').text()).toBe('Share "Shopping"')
+    expect(wrapper.findComponent({ name: 'MoveToGroupModal' }).exists()).toBe(true)
+    expect(wrapper.find('#move-to-group-modal-title').text()).toBe('Move "Shopping"')
   })
 
   it('opens confirmation modal and deletes list upon confirmation', async () => {

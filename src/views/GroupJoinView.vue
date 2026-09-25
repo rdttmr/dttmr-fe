@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useRecipesStore } from '@/stores/recipes'
+import { useGroupsStore } from '@/stores/groups'
 import AuthShell from '@/components/AuthShell.vue'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
-const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 
 const code = computed(() => {
   const value = route.query.code
@@ -30,13 +30,12 @@ async function attemptJoin() {
   status.value = 'joining'
   error.value = ''
   try {
-    await recipesStore.ensureLoaded()
-    const before = new Set(recipesStore.recipes.map((recipe) => recipe.id))
-    await recipesStore.joinRecipe(code.value)
-    const joined = recipesStore.recipes.find((recipe) => !before.has(recipe.id))
-    router.replace(joined ? `/recipes/${joined.id}` : '/recipes')
+    const joined = await groupsStore.joinGroup(code.value)
+    // Land on the lists, scoped to the group that was just joined.
+    if (joined) groupsStore.activeGroupId = joined.id
+    router.replace('/')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to join recipe'
+    error.value = err instanceof Error ? err.message : 'Failed to join group'
     status.value = 'error'
   }
 }
@@ -49,26 +48,26 @@ async function attemptJoin() {
         <span class="status-icon is-error"><AppIcon name="link" :size="26" /></span>
         <h2>Invalid link</h2>
         <p class="subtitle">
-          This link is missing a share code. Ask whoever shared it for a new one.
+          This link is missing a group code. Ask whoever shared it for a new one.
         </p>
-        <button type="button" class="btn btn-secondary" @click="router.push('/recipes')">
-          Go to Recipes
+        <button type="button" class="btn btn-secondary" @click="router.push('/groups')">
+          Go to Groups
         </button>
       </template>
 
       <template v-else-if="status === 'joining'">
         <span class="status-icon"><span class="spinner"></span></span>
-        <h2>Joining recipe…</h2>
+        <h2>Joining group…</h2>
         <p class="subtitle">Hang on a moment.</p>
       </template>
 
       <template v-else>
         <span class="status-icon is-error"><AppIcon name="alert" :size="26" /></span>
-        <h2>Couldn't join recipe</h2>
+        <h2>Couldn't join group</h2>
         <p v-if="error" class="banner banner-error">{{ error }}</p>
         <div class="actions">
-          <button type="button" class="btn btn-secondary" @click="router.push('/recipes')">
-            Go to Recipes
+          <button type="button" class="btn btn-secondary" @click="router.push('/groups')">
+            Go to Groups
           </button>
           <button type="button" class="btn btn-primary" @click="attemptJoin">Try again</button>
         </div>

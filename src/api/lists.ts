@@ -8,8 +8,7 @@ import type {
   SetListItemCompletedPayload,
   SetListItemTitlePayload,
   SetListNamePayload,
-  AddUserToListPayload,
-  RemoveUserFromListPayload,
+  SetListGroupPayload,
   OrderListsPayload,
 } from '@/types/list'
 
@@ -72,17 +71,10 @@ export async function updateListItemTitleApi(
   }
 }
 
-export async function addUserToListApi(payload: AddUserToListPayload): Promise<void> {
-  const response = await apiClient.post('/lists/user', payload)
+export async function setListGroupApi(listId: string, payload: SetListGroupPayload): Promise<void> {
+  const response = await apiClient.post(`/lists/${listId}/group`, payload)
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to add user to list'))
-  }
-}
-
-export async function removeUserFromListApi(payload: RemoveUserFromListPayload): Promise<void> {
-  const response = await apiClient.delete('/lists/user', payload)
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to remove user from list'))
+    throw new Error(await extractErrorMessage(response, 'Failed to move list'))
   }
 }
 

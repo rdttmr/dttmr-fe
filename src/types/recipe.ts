@@ -1,5 +1,7 @@
 export interface Recipe {
   id: string
+  // The group the recipe belongs to. It can only link items of lists in the same group.
+  group_id?: string
   name: string
   created_at?: string
   modified_at?: string
@@ -11,6 +13,8 @@ export interface Recipe {
 
 export interface CreateRecipePayload {
   name: string
+  // Optional: the server falls back to the user's default group.
+  group_id?: string
 }
 
 export interface SetRecipeNamePayload {
@@ -31,6 +35,6 @@ export interface OrderRecipesPayload {
   recipe_ids: string[]
 }
 
-export interface RecipeShareCode {
-  code: string
+export interface SetRecipeGroupPayload {
+  group_id: string
 }

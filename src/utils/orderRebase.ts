@@ -22,3 +22,12 @@ export function rebaseOrder(
 
   return [...unseen, ...kept]
 }
+
+// A drag on a filtered page (one group's lists) only reorders the visible
+// subset, but the order endpoints want every id. Puts the subset's new order
+// back into the slots those ids held in the full order; hidden ids stay put.
+export function mergeSubsetOrder(fullIds: string[], reorderedSubset: string[]): string[] {
+  const subset = new Set(reorderedSubset)
+  const queue = [...reorderedSubset]
+  return fullIds.map((id) => (subset.has(id) ? (queue.shift() ?? id) : id))
+}

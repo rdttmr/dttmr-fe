@@ -182,8 +182,7 @@ const recipesApiMocks = vi.hoisted(() => ({
   addListItemToRecipeApi: vi.fn<() => Promise<unknown>>(),
   removeListItemFromRecipeApi: vi.fn<() => Promise<unknown>>(),
   uncheckRecipeApi: vi.fn<() => Promise<unknown>>(),
-  shareRecipeApi: vi.fn<() => Promise<unknown>>(),
-  joinRecipeApi: vi.fn<() => Promise<unknown>>(),
+  setRecipeGroupApi: vi.fn<() => Promise<unknown>>(),
   orderRecipesApi: vi.fn<() => Promise<unknown>>(),
 }))
 
@@ -440,43 +439,64 @@ describe('useRecipesStore', () => {
     expect(store.pendingCount).toBe(0)
   })
 
-  it('shares a recipe with the server when online and returns the share code', async () => {
-    recipesApiMocks.shareRecipeApi.mockResolvedValueOnce({ code: 'abc123' })
+  it('creates a recipe in the given group and sends its group_id', async () => {
+    recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-r-g', name: 'Pancakes' })
 
     const store = useRecipesStore()
-    const code = await store.shareRecipe('recipe-1')
+    const local = await store.createRecipe('Pancakes', 'group-home')
+    expect(local.group_id).toBe('group-home')
 
-    expect(recipesApiMocks.shareRecipeApi).toHaveBeenCalledWith('recipe-1')
-    expect(code).toBe('abc123')
+    await store.sync()
+
+    expect(recipesApiMocks.createRecipeApi).toHaveBeenCalledWith({
+      name: 'Pancakes',
+      group_id: 'group-home',
+    })
   })
 
-  it('throws when sharing a recipe while offline without calling the API', async () => {
+  it('moves a recipe to another group, dropping links to lists outside it', async () => {
+    recipesApiMocks.setRecipeGroupApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-1', group_id: 'group-a', name: 'Pancakes', total_items: 2 },
+    ])
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValueOnce([
+      { id: 'item-b', list_id: 'list-b', title: 'Eggs', is_completed: false },
+    ])
+    await fakeDb.recipes.put({ id: 'recipe-1', group_id: 'group-a', name: 'Pancakes' })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-a' })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-b' })
+
+    const listsStore = useListsStore()
+    listsStore.lists = [
+      { id: 'list-a', group_id: 'group-a', name: 'Groceries' },
+      { id: 'list-b', group_id: 'group-b', name: 'Baking' },
+    ]
+    listsStore.listItems = [
+      { id: 'item-a', list_id: 'list-a', title: 'Milk', is_completed: false },
+      { id: 'item-b', list_id: 'list-b', title: 'Eggs', is_completed: false },
+    ]
+
+    const store = useRecipesStore()
+    await store.refresh()
+    await store.moveRecipeToGroup('recipe-1', 'group-b')
+
+    expect(recipesApiMocks.setRecipeGroupApi).toHaveBeenCalledWith('recipe-1', {
+      group_id: 'group-b',
+    })
+    expect(store.recipes.find((r) => r.id === 'recipe-1')?.group_id).toBe('group-b')
+    expect(store.recipeItemLinks.map((link) => link.listItemId)).toEqual(['item-b'])
+    expect(store.recipes.find((r) => r.id === 'recipe-1')?.total_items).toBe(1)
+  })
+
+  it('refuses to move a recipe while offline without calling the API', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
 
     const store = useRecipesStore()
-    await expect(store.shareRecipe('recipe-1')).rejects.toThrow('Cannot share recipe while offline')
+    await expect(store.moveRecipeToGroup('recipe-1', 'group-b')).rejects.toThrow(
+      'Cannot move a recipe while offline',
+    )
 
-    expect(recipesApiMocks.shareRecipeApi).not.toHaveBeenCalled()
-  })
-
-  it('joins a recipe by code and pulls the latest state from the server', async () => {
-    recipesApiMocks.joinRecipeApi.mockResolvedValueOnce(undefined)
-    recipesApiMocks.getRecipesApi.mockResolvedValueOnce([{ id: 'shared-recipe', name: 'Shared' }])
-
-    const store = useRecipesStore()
-    await store.joinRecipe('abc123')
-
-    expect(recipesApiMocks.joinRecipeApi).toHaveBeenCalledWith('abc123')
-    expect(store.recipes.find((r) => r.id === 'shared-recipe')).toBeDefined()
-  })
-
-  it('throws when joining a recipe while offline without calling the API', async () => {
-    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
-
-    const store = useRecipesStore()
-    await expect(store.joinRecipe('abc123')).rejects.toThrow('Cannot join recipe while offline')
-
-    expect(recipesApiMocks.joinRecipeApi).not.toHaveBeenCalled()
+    expect(recipesApiMocks.setRecipeGroupApi).not.toHaveBeenCalled()
   })
 
   it('deletes a previously synced recipe locally when it is missing from the server', async () => {

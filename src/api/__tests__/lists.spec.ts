@@ -7,8 +7,7 @@ import {
   createListItemApi,
   updateListItemTitleApi,
   setListItemCompletedApi,
-  addUserToListApi,
-  removeUserFromListApi,
+  setListGroupApi,
   deleteListApi,
   deleteListItemApi,
   orderListsApi,
@@ -154,33 +153,21 @@ describe('lists API', () => {
     )
   })
 
-  it('addUserToListApi sends POST to /lists/user', async () => {
+  it('setListGroupApi sends POST to /lists/{id}/group with the target group', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 204,
     } as unknown as Response)
     global.fetch = fetchMock
 
-    await addUserToListApi({ list_id: 'list-1', email: 'user@example.com' })
+    await setListGroupApi('list-1', { group_id: 'group-2' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/user`,
-      expect.objectContaining({ method: 'POST' }),
-    )
-  })
-
-  it('removeUserFromListApi sends DELETE to /lists/user', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
-      ok: true,
-      status: 204,
-    } as unknown as Response)
-    global.fetch = fetchMock
-
-    await removeUserFromListApi({ list_id: 'list-1', email: 'user@example.com' })
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      `${API_BASE_URL}/lists/user`,
-      expect.objectContaining({ method: 'DELETE' }),
+      `${API_BASE_URL}/lists/list-1/group`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ group_id: 'group-2' }),
+      }),
     )
   })
 

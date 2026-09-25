@@ -7,9 +7,9 @@ import { useDismissableMenu } from '@/composables/useDismissableMenu'
 import { hueFromString } from '@/utils/hue'
 import AppIcon from '@/components/AppIcon.vue'
 
-const props = defineProps<{ list: LocalList; dragging?: boolean }>()
+const props = defineProps<{ list: LocalList; groupLabel?: string; dragging?: boolean }>()
 const emit = defineEmits<{
-  share: [list: LocalList]
+  move: [list: LocalList]
   delete: [list: LocalList]
   'handle-pointerdown': [event: PointerEvent]
 }>()
@@ -36,11 +36,11 @@ const completedCount = computed(() =>
     : listsStore.itemsForList(props.list.id).filter((item) => item.is_completed).length,
 )
 
-function handleShare(event: Event) {
+function handleMove(event: Event) {
   event.preventDefault()
   event.stopPropagation()
   isMenuOpen.value = false
-  emit('share', props.list)
+  emit('move', props.list)
 }
 
 function handleDelete(event: Event) {
@@ -81,6 +81,7 @@ const isComplete = computed(() => totalCount.value > 0 && completedCount.value =
         <h3>{{ list.name }}</h3>
         <p class="meta">
           <span class="mono-num">{{ completedCount }}/{{ totalCount }}</span> done
+          <span v-if="groupLabel" class="group-tag">· {{ groupLabel }}</span>
           <span v-if="list.pendingSync" class="pending-tag">syncing…</span>
         </p>
         <div
@@ -109,9 +110,9 @@ const isComplete = computed(() => totalCount.value > 0 && completedCount.value =
       </button>
 
       <div v-if="isMenuOpen" class="submenu-dropdown card" role="menu">
-        <button type="button" class="submenu-item" role="menuitem" @click="handleShare">
-          <AppIcon name="share" :size="16" />
-          <span>Share list</span>
+        <button type="button" class="submenu-item" role="menuitem" @click="handleMove">
+          <AppIcon name="users" :size="16" />
+          <span>Move to group</span>
         </button>
         <button
           type="button"
@@ -244,6 +245,13 @@ const isComplete = computed(() => totalCount.value > 0 && completedCount.value =
   font-size: 0.78rem;
   color: var(--c-text-soft);
   margin-bottom: 0.5rem;
+}
+
+.group-tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pending-tag {

@@ -35,20 +35,21 @@ Offline-first Vue 3 PWA (Pinia, vue-router, Dexie/IndexedDB, vite-plugin-pwa) fo
 - **Both stores share the one `syncQueue` table but each owns disjoint op types** (`LIST_OP_TYPES` / `RECIPE_OP_TYPES`) and must only read and delete its own entries. Update the relevant list when adding an operation.
 - **`sync()` = `runSync()` (drain queue in `createdAt` order, stop at the first failure to preserve ordering) then `pullFromServer()`.** Overlapping calls share one in-flight promise; sync and item pulls are serialized via `enqueueOperation`. Pull never overwrites rows with `pendingSync`.
 - **Client-generated temporary IDs**: new lists/recipes/items get a client UUID, later swapped for the server ID by `remapListId` / `remapListItemId` (and the recipe equivalents) once the create syncs. Those remaps also rewrite queued entries and link rows referencing the old ID. `clientId` stays stable across the swap, so use it as the `:key` in `v-for` / `TransitionGroup`.
+- **Groups** (`stores/groups.ts`) own lists and recipes (`group_id`); every member sees everything in a group. Unlike lists/recipes, groups are **online-only**: Dexie's `groups` table is just a cache of `GET /groups` for offline filtering, and create/rename/share/join/delete/set-default plus moving a list/recipe between groups hit the API directly (no queue ops, no temp IDs). Creates without a `group_id` land in the default group. A recipe may only link items from lists in its own group; the server drops crossing links on a move and `removeLinksAcrossGroups()` mirrors that locally.
 - **Recipe membership** is a link table (`recipeItems`, `[recipeId+listItemId]`), not copies. Item data lives in `listItems`. Deleting a list item also removes it from all recipes (stores call each other).
 - **Ordering**: `orderLists` / `orderRecipes` send the full ID list and the server rejects stale sets. `utils/orderRebase.ts` rebuilds a queued reorder against current server state; failed reorders are retried a few times (`MAX_ORDER_ATTEMPTS`), then the server order wins. `composables/useDragReorder.ts` is a Pointer Events drag-and-drop (deliberately not HTML5 DnD, for touch).
-- `main.ts` triggers `sync()` for both stores on startup and on the `online` event.
+- `main.ts` triggers `sync()` for the groups, lists and recipes stores on startup and on the `online` event.
 - **4xx vs retryable errors**: `ApiError` + `isServerRejection()` (`api/http.ts`) distinguish a request the server permanently refused (drop it) from network/5xx/401/408/429 (retry).
 
 ### API layer
 
 - `api/http.ts` – base URL, `ApiError`, `extractErrorMessage` (no store/router imports, so it is safe to import anywhere).
 - `api/client.ts` – `apiClient` / `fetchWithAuth`: attaches the Bearer token, and on 401 refreshes tokens once (a shared `refreshPromise` dedupes concurrent refreshes) then retries. If that fails it redirects to login and throws `SessionExpiredError`.
-- `api/*.ts` (lists, recipes, users, invites, exercises, auth, version) are thin per-resource wrappers that throw `Error` with the server's message.
+- `api/*.ts` (lists, recipes, groups, users, invites, exercises, auth, version) are thin per-resource wrappers that throw `Error` with the server's message.
 
 ### Auth and routing
 
-`stores/auth.ts` keeps access/refresh JWTs in `localStorage` and decodes claims client-side (`utils/jwt.ts`). The router guard redirects unauthenticated users to `/login?redirect=...` for routes with `meta.requiresAuth`. An `?invite=` query on any route is redirected to `/register` (registration is invite-only and intentionally not linked in the UI). `/recipes/join` is declared before `/recipes/:id` on purpose.
+`stores/auth.ts` keeps access/refresh JWTs in `localStorage` and decodes claims client-side (`utils/jwt.ts`). The router guard redirects unauthenticated users to `/login?redirect=...` for routes with `meta.requiresAuth`. An `?invite=` query on any route is redirected to `/register` (registration is invite-only and intentionally not linked in the UI). `/groups/join?code=` is where group share links land.
 
 ### UI
 

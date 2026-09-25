@@ -7,7 +7,7 @@ import type {
   AddListItemToRecipePayload,
   RemoveListItemFromRecipePayload,
   OrderRecipesPayload,
-  RecipeShareCode,
+  SetRecipeGroupPayload,
 } from '@/types/recipe'
 import type { ListItem } from '@/types/list'
 
@@ -85,17 +85,12 @@ export async function uncheckRecipeApi(recipeId: string): Promise<void> {
   }
 }
 
-export async function shareRecipeApi(recipeId: string): Promise<RecipeShareCode> {
-  const response = await apiClient.post(`/recipes/${recipeId}/share`)
+export async function setRecipeGroupApi(
+  recipeId: string,
+  payload: SetRecipeGroupPayload,
+): Promise<void> {
+  const response = await apiClient.post(`/recipes/${recipeId}/group`, payload)
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to share recipe'))
-  }
-  return response.json()
-}
-
-export async function joinRecipeApi(code: string): Promise<void> {
-  const response = await apiClient.post(`/recipes/${code}/join`)
-  if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, 'Failed to join recipe'))
+    throw new Error(await extractErrorMessage(response, 'Failed to move recipe'))
   }
 }

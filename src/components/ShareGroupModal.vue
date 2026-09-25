@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { LocalRecipe } from '@/database/db'
-import { useRecipesStore } from '@/stores/recipes'
+import type { Group } from '@/types/group'
+import { useGroupsStore } from '@/stores/groups'
 import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
 
 const props = defineProps<{
-  recipe: LocalRecipe
+  group: Group
 }>()
 
 const emit = defineEmits<{
   close: []
 }>()
 
-const recipesStore = useRecipesStore()
+const groupsStore = useGroupsStore()
 
 const code = ref('')
 const isLoading = ref(false)
@@ -29,30 +29,30 @@ async function generateCode() {
   error.value = ''
   isLoading.value = true
   try {
-    code.value = await recipesStore.shareRecipe(props.recipe.id)
+    code.value = await groupsStore.shareGroup(props.group.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to share recipe'
+    error.value = err instanceof Error ? err.message : 'Failed to share group'
   } finally {
     isLoading.value = false
   }
 }
 
 // The link that lands someone on the (otherwise unlinked) join page - see
-// router.ts, which routes /recipes/join?code=... to RecipeJoinView.
-function getRecipeJoinUrl(shareCode: string): string {
+// router.ts, which routes /groups/join?code=... to GroupJoinView.
+function getGroupJoinUrl(shareCode: string): string {
   const base = `${window.location.origin}${import.meta.env.BASE_URL}`
-  return `${base}recipes/join?code=${encodeURIComponent(shareCode)}`
+  return `${base}groups/join?code=${encodeURIComponent(shareCode)}`
 }
 
 async function handleShare() {
   if (!code.value) return
-  const url = getRecipeJoinUrl(code.value)
+  const url = getGroupJoinUrl(code.value)
 
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({
-        title: `Join "${props.recipe.name}"`,
-        text: 'Use this link to join the recipe',
+        title: `Join "${props.group.name}"`,
+        text: 'Use this link to join the group',
         url,
       })
       return
@@ -83,19 +83,14 @@ function handleClose() {
 
 <template>
   <BaseModal
-    :title="`Share &quot;${recipe.name}&quot;`"
-    title-id="share-recipe-modal-title"
+    :title="`Share &quot;${group.name}&quot;`"
+    title-id="share-group-modal-title"
     icon="share"
     @close="handleClose"
   >
-    <p class="modal-description">Anyone with this link can join the recipe and see its items.</p>
-    <p class="disclaimer">
-      <AppIcon name="alert" :size="16" />
-      <span
-        >Joining doesn't check whether they can already see the lists these items belong to — anyone
-        with the link can see the items regardless. That check isn't built yet, but sharing still
-        works.</span
-      >
+    <p class="modal-description">
+      Whoever opens this link joins the group and sees all of its lists and recipes. The link works
+      once.
     </p>
 
     <p v-if="isLoading" class="loading-hint">Generating link…</p>
@@ -124,23 +119,6 @@ function handleClose() {
   font-size: 0.92rem;
   color: var(--c-text-soft);
   margin-bottom: 1rem;
-}
-
-.disclaimer {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-start;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--radius-md);
-  background-color: var(--c-warning-bg);
-  color: var(--c-warning);
-  font-size: 0.78rem;
-  line-height: 1.45;
-  margin-bottom: 1rem;
-}
-
-.disclaimer .icon {
-  margin-top: 0.1rem;
 }
 
 .loading-hint {
