@@ -244,7 +244,22 @@ describe('useGroupsStore', () => {
 
     expect(groupsApiMocks.joinGroupApi).toHaveBeenCalledWith('abc123')
     expect(joined?.id).toBe('g-home')
-    expect(listsSync).toHaveBeenCalled()
-    expect(recipesSync).toHaveBeenCalled()
+    expect(listsSync).toHaveBeenCalledWith({ force: true })
+    expect(recipesSync).toHaveBeenCalledWith({ force: true })
+  })
+
+  it('skips GET /groups while the last pull is fresh, but not after joining a group', async () => {
+    groupsApiMocks.getGroupsApi.mockResolvedValue([personal])
+    groupsApiMocks.joinGroupApi.mockResolvedValueOnce(undefined)
+    const store = useGroupsStore()
+    vi.spyOn(useListsStore(), 'sync').mockResolvedValue()
+    vi.spyOn(useRecipesStore(), 'sync').mockResolvedValue()
+
+    await store.loadGroups()
+    await store.sync()
+    expect(groupsApiMocks.getGroupsApi).toHaveBeenCalledTimes(1)
+
+    await store.joinGroup('abc123')
+    expect(groupsApiMocks.getGroupsApi).toHaveBeenCalledTimes(2)
   })
 })

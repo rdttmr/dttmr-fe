@@ -26,11 +26,11 @@ import {
 } from '@/api/lists'
 import { isServerRejection } from '@/api/http'
 import { rebaseOrder } from '@/utils/orderRebase'
+import { createPullTracker } from '@/utils/pullFreshness'
 
 // A burst of rapid edits (ticking off several items, typing then blurring a
-// few titles) would otherwise trigger one full sync pass - queue drain plus
-// a GET /lists - per edit. Debouncing collapses a burst into a single pass a
-// short moment after the last edit.
+// few titles) would otherwise trigger one sync pass per edit. Debouncing
+// collapses a burst into a single pass a short moment after the last edit.
 const SYNC_DEBOUNCE_MS = 400
 
 // This store owns exactly these queue operations; the recipes store owns the
@@ -66,6 +66,11 @@ export const useListsStore = defineStore('lists', () => {
   const isSyncing = ref(false)
   const error = ref<string | null>(null)
   const pendingCount = ref(0)
+
+  // When GET /lists (key "") and each GET /lists/{id} (key: the list id) last
+  // succeeded, so screen visits and edits within PULL_FRESH_MS don't
+  // re-download them.
+  const pulls = createPullTracker(() => useAuthStore().currentUser?.user_id)
 
   // Lists carry a server-assigned `position`, rearranged via reorderLists().
   // New lists (local-only or freshly synced) always come back as position 0
@@ -119,6 +124,29 @@ export const useListsStore = defineStore('lists', () => {
   function removeLocalListItem(id: string) {
     const idx = listItems.value.findIndex((entry) => entry.id === id)
     if (idx !== -1) listItems.value.splice(idx, 1)
+  }
+
+  // Keeps the server-provided total_items/completed_items (what the overview
+  // cards show) in step with local item edits, so an edit doesn't need a
+  // GET /lists round trip to update them - same idea as adjustTotalItems in
+  // stores/recipes.ts. Reads the row from Dexie rather than `lists`, since
+  // recipe screens edit items without this store's lists necessarily loaded.
+  // Counts the server never reported are left alone; ListCard falls back to
+  // counting local items for those.
+  async function adjustListCounts(listId: string, delta: { total?: number; completed?: number }) {
+    const list = await db.lists.get(listId)
+    if (!list) return
+    const patch: Pick<LocalList, 'total_items' | 'completed_items'> = {}
+    if (delta.total && list.total_items !== undefined) {
+      patch.total_items = Math.max(0, list.total_items + delta.total)
+    }
+    if (delta.completed && list.completed_items !== undefined) {
+      patch.completed_items = Math.max(0, list.completed_items + delta.completed)
+    }
+    if (Object.keys(patch).length === 0) return
+    await db.lists.update(listId, patch)
+    const existing = lists.value.find((entry) => entry.id === listId)
+    if (existing) Object.assign(existing, patch)
   }
 
   async function refresh() {
@@ -227,9 +255,13 @@ export const useListsStore = defineStore('lists', () => {
 
     await db.listItems.add(localItem)
     upsertListItem(localItem)
+    await adjustListCounts(listId, { total: 1 })
     await enqueue({
       type: 'createListItem',
       payload: { list_id: listId, title },
+      // Lets remapListId rewrite payload.list_id when the list itself was
+      // created offline and hasn't got its server id yet.
+      localListId: listId,
       localListItemId: localItem.id,
     })
     scheduleSync()
@@ -260,7 +292,11 @@ export const useListsStore = defineStore('lists', () => {
       modified_at: new Date().toISOString(),
       pendingSync: true,
     }
+    const before = await db.listItems.get(itemId)
     await db.listItems.update(itemId, patch)
+    if (before && before.is_completed !== isCompleted) {
+      await adjustListCounts(before.list_id, { completed: isCompleted ? 1 : -1 })
+    }
     const existingItem = listItems.value.find((entry) => entry.id === itemId)
     if (existingItem) Object.assign(existingItem, patch)
     await enqueue({
@@ -295,7 +331,7 @@ export const useListsStore = defineStore('lists', () => {
 
     const recipesStore = useRecipesStore()
     await recipesStore.removeLinksAcrossGroups()
-    void recipesStore.sync()
+    void recipesStore.sync({ force: true })
   }
 
   async function deleteList(listId: string) {
@@ -352,11 +388,21 @@ export const useListsStore = defineStore('lists', () => {
   }
 
   async function deleteListItem(itemId: string) {
+    const before = await db.listItems.get(itemId)
     await db.listItems.delete(itemId)
     removeLocalListItem(itemId)
+    if (before) {
+      await adjustListCounts(before.list_id, {
+        total: -1,
+        completed: before.is_completed ? -1 : 0,
+      })
+    }
     await enqueue({
       type: 'deleteListItem',
       payload: { id: itemId },
+      // The item row is gone locally, so this is how pullFromServer still
+      // knows the list has an edit the server hasn't seen yet.
+      localListId: before?.list_id,
       localListItemId: itemId,
     })
     scheduleSync()
@@ -389,10 +435,12 @@ export const useListsStore = defineStore('lists', () => {
       .toArray()
     for (const entry of affectedQueueEntries) {
       const payload = entry.payload
+      // Item operations also carry localListId, and deleteListItem's
+      // payload.id is the item's id, so only a deleteList's `id` is rewritten.
       const updatedPayload =
         'list_id' in payload
           ? { ...payload, list_id: newId }
-          : 'id' in payload
+          : entry.type === 'deleteList'
             ? { ...payload, id: newId }
             : payload
       await db.syncQueue.update(entry.id!, {
@@ -566,6 +614,8 @@ export const useListsStore = defineStore('lists', () => {
       pendingCount.value = Math.max(0, pendingCount.value - 1)
     }
     if (entry.type === 'orderLists') await settleListOrder(entry.payload.list_ids)
+    // The pull that follows this pass must actually happen for that.
+    pulls.invalidate()
     error.value = `Couldn't save the new list order (${message}). Showing the server's order instead.`
   }
 
@@ -637,14 +687,27 @@ export const useListsStore = defineStore('lists', () => {
   // Ensures overlapping calls to sync() (e.g. one triggered automatically by
   // a mutation while another is triggered by the "online" event) share the
   // same in-flight run instead of silently no-oping.
-  async function sync(): Promise<void> {
+  //
+  // The queue is always drained, but GET /lists is skipped while the last
+  // pull is still fresh (see utils/pullFreshness.ts): local edits are
+  // already applied, counts included. `force` is for callers that just
+  // changed server state the local copy can't know about (joining a group).
+  async function sync(options: { force?: boolean } = {}): Promise<void> {
     if (ongoingSync) {
-      return ongoingSync
+      if (!options.force) return ongoingSync
+      // The in-flight pass may already be past its pull, and so miss the
+      // change a forced sync is meant to pick up: run another one after it.
+      await ongoingSync.catch(() => undefined)
+      return sync(options)
     }
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     if (!useAuthStore().isAuthenticated) return
 
-    ongoingSync = enqueueOperation(() => runSync().then(() => pullFromServer()))
+    if (options.force) pulls.invalidate()
+    ongoingSync = enqueueOperation(async () => {
+      await runSync()
+      if (!pulls.isFresh()) await pullFromServer()
+    })
     try {
       await ongoingSync
     } finally {
@@ -667,13 +730,34 @@ export const useListsStore = defineStore('lists', () => {
       const [serverLists, localLists] = await Promise.all([getListsApi(), db.lists.toArray()])
       const localById = new Map(localLists.map((list) => [list.id, list]))
       const serverListIds = new Set(serverLists.map((serverList) => serverList.id))
+      // A list with item edits the server hasn't seen yet keeps its locally
+      // adjusted counts; the server's numbers don't include those edits.
+      const listsWithPendingItemEdits = await listIdsWithPendingItemEdits()
 
       const toPut: LocalList[] = []
       for (const serverList of serverLists) {
         const existingList = localById.get(serverList.id)
         if (!existingList || !existingList.pendingSync) {
+          const keepLocalCounts =
+            existingList?.total_items !== undefined && listsWithPendingItemEdits.has(serverList.id)
+          // Counts that moved without a local edit mean someone else changed
+          // the list's items, so the copy of them cached here is out of date.
+          if (
+            existingList &&
+            !keepLocalCounts &&
+            (existingList.total_items !== serverList.total_items ||
+              existingList.completed_items !== serverList.completed_items)
+          ) {
+            pulls.invalidate(serverList.id)
+          }
           toPut.push({
             ...serverList,
+            ...(keepLocalCounts
+              ? {
+                  total_items: existingList.total_items,
+                  completed_items: existingList.completed_items,
+                }
+              : {}),
             pendingSync: false,
             clientId: existingList?.clientId ?? serverList.id,
           })
@@ -706,9 +790,22 @@ export const useListsStore = defineStore('lists', () => {
         const deletedIds = new Set(idsToDelete)
         listItems.value = listItems.value.filter((item) => !deletedIds.has(item.list_id))
       }
+      pulls.markPulled()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load lists from server'
     }
+  }
+
+  async function listIdsWithPendingItemEdits(): Promise<Set<string>> {
+    const [pendingItems, queuedDeletes] = await Promise.all([
+      db.listItems.filter((item) => !!item.pendingSync).toArray(),
+      db.syncQueue.where('type').equals('deleteListItem').toArray(),
+    ])
+    const ids = new Set(pendingItems.map((item) => item.list_id))
+    for (const entry of queuedDeletes) {
+      if (entry.localListId) ids.add(entry.localListId)
+    }
+    return ids
   }
 
   // Pulls the authoritative items of a single list from the server and
@@ -752,14 +849,31 @@ export const useListsStore = defineStore('lists', () => {
       for (const id of idsToDelete) {
         await recipesStore.removeItemFromAllRecipes(id)
       }
+
+      // The list's full item set is local now, which makes it the better
+      // source for the counts (it also includes edits not yet synced).
+      const items = await db.listItems.where('list_id').equals(listId).toArray()
+      const counts = {
+        total_items: items.length,
+        completed_items: items.filter((item) => item.is_completed).length,
+      }
+      await db.lists.update(listId, counts)
+      const list = lists.value.find((entry) => entry.id === listId)
+      if (list) Object.assign(list, counts)
+
+      pulls.markPulled(listId)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load list items from server'
     }
   }
 
-  async function pullListItems(listId: string): Promise<void> {
+  async function pullListItems(listId: string, options: { force?: boolean } = {}): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
-    return enqueueOperation(() => pullListItemsInternal(listId))
+    // Checked once it's this pull's turn, so two quick visits to the same
+    // list don't both queue a fetch.
+    return enqueueOperation(() =>
+      options.force || !pulls.isFresh(listId) ? pullListItemsInternal(listId) : Promise.resolve(),
+    )
   }
 
   async function loadListItems(listId: string) {
@@ -793,5 +907,6 @@ export const useListsStore = defineStore('lists', () => {
     pullFromServer,
     pullListItems,
     upsertListItem,
+    adjustListCounts,
   }
 })

@@ -230,6 +230,25 @@ describe('useRecipesStore', () => {
     localStorage.clear()
   })
 
+  it("shows a recipe's items from local storage even when the lists store hasn't been loaded", async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    await fakeDb.listItems.put({
+      id: 'item-1',
+      list_id: 'list-1',
+      title: 'Flour',
+      is_completed: false,
+      pendingSync: false,
+    })
+    await fakeDb.recipes.put({ id: 'recipe-1', name: 'Pancakes', pendingSync: false })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-1', pendingSync: false })
+
+    const store = useRecipesStore()
+    await store.loadRecipeItems('recipe-1')
+
+    expect(store.itemsForRecipe('recipe-1').map((item) => item.title)).toEqual(['Flour'])
+    expect(recipesApiMocks.getRecipeItemsApi).not.toHaveBeenCalled()
+  })
+
   it('renames a recipe created offline against its server id once the create has synced', async () => {
     recipesApiMocks.createRecipeApi.mockResolvedValueOnce({ id: 'server-r-1', name: 'Pancakes' })
     recipesApiMocks.renameRecipeApi.mockResolvedValueOnce(undefined)
@@ -838,5 +857,113 @@ describe('useRecipesStore', () => {
 
     await vi.advanceTimersByTimeAsync(1)
     expect(recipesApiMocks.createRecipeApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips GET /recipes and re-pulling items while fresh, but still pushes queued edits', async () => {
+    recipesApiMocks.getRecipesApi.mockResolvedValue([
+      { id: 'recipe-1', name: 'Omelette', total_items: 0 },
+    ])
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValue([])
+    recipesApiMocks.renameRecipeApi.mockResolvedValue(undefined)
+
+    const store = useRecipesStore()
+    await store.sync()
+    await store.pullRecipeItems('recipe-1')
+    await store.renameRecipe('recipe-1', 'Frittata')
+    await store.sync()
+    await store.pullRecipeItems('recipe-1')
+
+    expect(recipesApiMocks.renameRecipeApi).toHaveBeenCalledTimes(1)
+    expect(recipesApiMocks.getRecipesApi).toHaveBeenCalledTimes(1)
+    expect(recipesApiMocks.getRecipeItemsApi).toHaveBeenCalledTimes(1)
+  })
+
+  it("lowers the items' lists completed counts when unchecking a recipe", async () => {
+    await fakeDb.lists.put({ id: 'list-1', name: 'Pantry', total_items: 2, completed_items: 2 })
+    await fakeDb.listItems.put({
+      id: 'item-1',
+      list_id: 'list-1',
+      title: 'Flour',
+      is_completed: true,
+    })
+    await fakeDb.listItems.put({
+      id: 'item-2',
+      list_id: 'list-1',
+      title: 'Eggs',
+      is_completed: true,
+    })
+    await fakeDb.recipes.put({ id: 'recipe-1', name: 'Omelette', pendingSync: false })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-1', pendingSync: false })
+
+    const store = useRecipesStore()
+    await store.refresh()
+    await store.uncheckRecipe('recipe-1')
+
+    const list = useListsStore().lists.find((entry) => entry.id === 'list-1')
+    expect(list?.completed_items).toBe(1)
+  })
+
+  it("doesn't let a recipe item pull overwrite an item's unsynced local edit", async () => {
+    await fakeDb.listItems.put({
+      id: 'item-1',
+      list_id: 'list-1',
+      title: 'Flour',
+      is_completed: true,
+      pendingSync: true,
+    })
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValueOnce([
+      { id: 'item-1', list_id: 'list-1', title: 'Flour', is_completed: false },
+      { id: 'item-2', list_id: 'list-1', title: 'Eggs', is_completed: false },
+    ])
+
+    const store = useRecipesStore()
+    await store.refresh()
+    await store.pullRecipeItems('recipe-1')
+
+    const items = useListsStore().listItems
+    expect(items.find((i) => i.id === 'item-1')).toMatchObject({
+      is_completed: true,
+      pendingSync: true,
+    })
+    expect(items.find((i) => i.id === 'item-2')).toBeDefined()
+    // Membership still comes from the server either way.
+    expect(
+      store
+        .itemsForRecipe('recipe-1')
+        .map((i) => i.id)
+        .sort(),
+    ).toEqual(['item-1', 'item-2'])
+  })
+
+  it("settles an uncheck's items once synced, except items with their own queued edit", async () => {
+    for (const id of ['item-1', 'item-2']) {
+      await fakeDb.listItems.put({ id, list_id: 'list-1', title: id, is_completed: true })
+    }
+    await fakeDb.recipes.put({ id: 'recipe-1', name: 'Omelette', pendingSync: false })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-1', pendingSync: false })
+    await fakeDb.recipeItems.put({ recipeId: 'recipe-1', listItemId: 'item-2', pendingSync: false })
+    recipesApiMocks.uncheckRecipeApi.mockResolvedValueOnce(undefined)
+    recipesApiMocks.getRecipeItemsApi.mockResolvedValueOnce([
+      { id: 'item-1', list_id: 'list-1', title: 'item-1 (renamed elsewhere)', is_completed: false },
+      { id: 'item-2', list_id: 'list-1', title: 'item-2', is_completed: false },
+    ])
+
+    const store = useRecipesStore()
+    await store.refresh()
+    await store.uncheckRecipe('recipe-1')
+    // A title edit on item-2 that the lists store hasn't pushed yet.
+    await useListsStore().updateListItemTitle('item-2', 'Eggs')
+    await store.sync()
+
+    const items = useListsStore().listItems
+    expect(items.find((i) => i.id === 'item-1')).toMatchObject({
+      title: 'item-1 (renamed elsewhere)',
+      pendingSync: false,
+    })
+    expect(items.find((i) => i.id === 'item-2')).toMatchObject({
+      title: 'Eggs',
+      is_completed: false,
+      pendingSync: true,
+    })
   })
 })
