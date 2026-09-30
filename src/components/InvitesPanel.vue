@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getInvitesApi, getInviteStatusApi, createInviteApi, deleteInviteApi } from '@/api/invites'
-import type { Invite, InviteStatusCounts } from '@/types/invite'
+import type { CreatedInvite, Invite, InviteStatusCounts } from '@/types/invite'
 import AppIcon from '@/components/AppIcon.vue'
 
 type InviteStatus = 'active' | 'used' | 'expired'
@@ -18,6 +18,10 @@ const error = ref('')
 const pendingDeleteId = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
 const sharedId = ref<string | null>(null)
+// The server only hands out an invite's code in the create response, so codes
+// of invites generated while this panel is open are kept here to stay
+// shareable. Every other invite's code is gone for good.
+const createdCodes = ref<Record<string, string>>({})
 // Counts across ALL invites (not just the current page)
 const statusCounts = ref<InviteStatusCounts | null>(null)
 
@@ -99,6 +103,7 @@ async function handleCreate() {
   isCreating.value = true
   try {
     const invite = await createInviteApi()
+    createdCodes.value[invite.id] = invite.code
     page.value = 1
     await loadInvites()
     await loadStatusCounts()
@@ -154,7 +159,36 @@ function getInviteUrl(code: string): string {
   return `${base}?invite=${encodeURIComponent(code)}`
 }
 
-async function shareInvite(invite: Invite) {
+function knownCode(invite: Invite): string | undefined {
+  return createdCodes.value[invite.id]
+}
+
+function canShare(invite: Invite): boolean {
+  return inviteStatus(invite) === 'active' && knownCode(invite) !== undefined
+}
+
+function shareDisabledReason(invite: Invite): string {
+  if (inviteStatus(invite) !== 'active') return 'Only active invites can be shared'
+  if (!canShare(invite)) return 'Invite codes can only be shared right after generating them'
+  return ''
+}
+
+// What the ticket is titled by: its code while we still know it, otherwise
+// whatever identifies it best.
+function ticketTitle(invite: Invite): string {
+  const code = knownCode(invite)
+  if (code) return code
+  const status = inviteStatus(invite)
+  if (status === 'used') return invite.used_by ? `Used by ${invite.used_by}` : 'Used invite'
+  return status === 'expired' ? 'Expired invite' : 'Open invite'
+}
+
+async function shareListedInvite(invite: Invite) {
+  const code = knownCode(invite)
+  if (code) await shareInvite({ ...invite, code })
+}
+
+async function shareInvite(invite: CreatedInvite) {
   const url = getInviteUrl(invite.code)
 
   if (typeof navigator.share === 'function') {
@@ -256,7 +290,8 @@ function inviteDetail(invite: Invite): string {
 
     <div v-if="expanded" id="invites-panel" class="invites-body">
       <p class="invites-hint">
-        Invite codes let someone new create an account. Creating, listing, and deleting invites
+        Invite codes let someone new create an account. A code can only be shared right after
+        generating it; it can't be shown again later. Creating, listing, and deleting invites
         requires an internet connection.
       </p>
 
@@ -270,7 +305,10 @@ function inviteDetail(invite: Invite): string {
           :class="`is-${inviteStatus(invite)}`"
         >
           <div class="invite-ticket-main">
-            <code class="invite-code" :title="invite.code">{{ invite.code }}</code>
+            <code v-if="knownCode(invite)" class="invite-code" :title="knownCode(invite)">{{
+              knownCode(invite)
+            }}</code>
+            <span v-else class="invite-title">{{ ticketTitle(invite) }}</span>
             <span class="invite-status-pill" :class="`pill-${inviteStatus(invite)}`">{{
               statusLabel(invite)
             }}</span>
@@ -282,11 +320,9 @@ function inviteDetail(invite: Invite): string {
               <button
                 type="button"
                 class="ticket-btn"
-                :disabled="inviteStatus(invite) !== 'active'"
-                :title="
-                  inviteStatus(invite) !== 'active' ? 'Only active invites can be shared' : ''
-                "
-                @click="shareInvite(invite)"
+                :disabled="!canShare(invite)"
+                :title="shareDisabledReason(invite)"
+                @click="shareListedInvite(invite)"
               >
                 {{ sharedId === invite.id ? 'Copied!' : 'Share' }}
               </button>
@@ -526,6 +562,17 @@ function inviteDetail(invite: Invite): string {
   .invite-code {
     max-width: 80ch;
   }
+}
+
+.invite-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--c-heading);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .invite-status-pill {

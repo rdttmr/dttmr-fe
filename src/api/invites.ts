@@ -1,6 +1,6 @@
 import { apiClient } from '@/api/client'
 import { extractErrorMessage } from '@/api/http'
-import type { Invite, InviteStatusCounts, PaginatedInvites } from '@/types/invite'
+import type { CreatedInvite, InviteStatusCounts, PaginatedInvites } from '@/types/invite'
 
 export interface GetInvitesParams {
   page?: number
@@ -28,7 +28,8 @@ export async function getInviteStatusApi(): Promise<InviteStatusCounts> {
   return response.json()
 }
 
-export async function createInviteApi(): Promise<Invite> {
+// The response is the only place the invite's code ever appears.
+export async function createInviteApi(): Promise<CreatedInvite> {
   const response = await apiClient.post('/user/invites')
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response, 'Failed to create invite'))

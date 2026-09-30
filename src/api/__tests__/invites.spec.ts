@@ -22,7 +22,7 @@ describe('invites API', () => {
   })
 
   it('getInvitesApi sends GET to /user/invites and returns the paginated result', async () => {
-    const mockResponse = { data: [{ id: 'invite-1', code: 'ABC123' }], total: 1, count: 1 }
+    const mockResponse = { data: [{ id: 'invite-1' }], total: 1, count: 1 }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce({
       ok: true,
       status: 200,

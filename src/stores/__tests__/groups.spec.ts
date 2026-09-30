@@ -70,8 +70,8 @@ const home: Group = {
   role: 'member',
 }
 
-// A group the current user owns rather than just belongs to.
-const ownedHome: Group = { ...home, role: 'owner' }
+// A group the current user owns alone, rather than just belongs to.
+const ownedHome: Group = { ...home, role: 'owner', member_count: 1 }
 
 describe('useGroupsStore', () => {
   beforeEach(() => {
@@ -162,6 +162,36 @@ describe('useGroupsStore', () => {
     await expect(store.deleteGroup('g-unknown')).rejects.toThrow('Only the group owner')
     await expect(store.deleteGroup('g-home')).rejects.toThrow('Only the group owner')
     expect(groupsApiMocks.deleteGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('refuses to delete the default group', async () => {
+    const store = useGroupsStore()
+    store.groups = [
+      { ...personal, is_default: false },
+      { ...ownedHome, is_default: true },
+    ]
+
+    await expect(store.deleteGroup('g-home')).rejects.toThrow('default group')
+    expect(groupsApiMocks.deleteGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('refuses to delete a group that still has other members', async () => {
+    const store = useGroupsStore()
+    store.groups = [personal, { ...ownedHome, member_count: 2 }]
+
+    await expect(store.deleteGroup('g-home')).rejects.toThrow('Other members')
+    expect(groupsApiMocks.deleteGroupApi).not.toHaveBeenCalled()
+  })
+
+  it('refuses to leave the default group', async () => {
+    const store = useGroupsStore()
+    store.groups = [
+      { ...personal, is_default: false },
+      { ...home, is_default: true },
+    ]
+
+    await expect(store.leaveGroup('g-home')).rejects.toThrow('default group')
+    expect(groupsApiMocks.leaveGroupApi).not.toHaveBeenCalled()
   })
 
   it('refuses to let the owner leave', async () => {

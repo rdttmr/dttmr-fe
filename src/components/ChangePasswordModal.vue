@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { changePasswordApi } from '@/api/users'
 import BaseModal from '@/components/BaseModal.vue'
+import { passwordProblem } from '@/utils/password'
 
 const emit = defineEmits<{
   close: []
@@ -29,8 +30,13 @@ async function handleSubmit() {
   error.value = ''
   successMessage.value = ''
 
-  if (newPassword.value.length < 8) {
-    error.value = 'New password must be at least 8 characters.'
+  if (!currentPassword.value) {
+    error.value = 'Please enter your current password.'
+    return
+  }
+  const problem = passwordProblem(newPassword.value)
+  if (problem) {
+    error.value = `New ${problem.charAt(0).toLowerCase()}${problem.slice(1)}`
     return
   }
   if (newPassword.value !== confirmPassword.value) {

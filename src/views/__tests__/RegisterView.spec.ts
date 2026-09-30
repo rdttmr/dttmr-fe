@@ -74,6 +74,22 @@ describe('RegisterView', () => {
     expect(createSpy).not.toHaveBeenCalled()
   })
 
+  it('rejects passwords longer than 72 bytes, counting multi-byte characters', async () => {
+    const createSpy = vi.spyOn(usersApi, 'createUserApi')
+    const wrapper = mount(RegisterView)
+    // 40 characters, but 80 bytes in UTF-8.
+    const password = 'ü'.repeat(40)
+
+    await wrapper.find('#name').setValue('Jane Doe')
+    await wrapper.find('#email').setValue('jane@example.com')
+    await wrapper.find('#password').setValue(password)
+    await wrapper.find('#confirm-password').setValue(password)
+    await wrapper.find('form').trigger('submit.prevent')
+
+    expect(wrapper.find('.error-banner').text()).toContain('too long')
+    expect(createSpy).not.toHaveBeenCalled()
+  })
+
   it('rejects mismatched passwords', async () => {
     const createSpy = vi.spyOn(usersApi, 'createUserApi')
     const wrapper = mount(RegisterView)

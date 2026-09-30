@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useListsStore } from '@/stores/lists'
 import { useRecipesStore } from '@/stores/recipes'
 import AuthShell from '@/components/AuthShell.vue'
+import { passwordProblem } from '@/utils/password'
 
 const router = useRouter()
 const route = useRoute()
@@ -28,8 +29,16 @@ const error = ref('')
 async function handleSubmit() {
   error.value = ''
 
-  if (password.value.length < 8) {
-    error.value = 'Password must be at least 8 characters.'
+  // The server stores emails lowercased; send it that way so the login
+  // right after uses the same form.
+  const normalizedEmail = email.value.trim().toLowerCase()
+  if (!name.value.trim() || !normalizedEmail) {
+    error.value = 'Please enter your name and email.'
+    return
+  }
+  const problem = passwordProblem(password.value)
+  if (problem) {
+    error.value = problem
     return
   }
   if (password.value !== confirmPassword.value) {
@@ -40,13 +49,13 @@ async function handleSubmit() {
   isSubmitting.value = true
   try {
     await createUserApi({
-      name: name.value,
-      email: email.value,
+      name: name.value.trim(),
+      email: normalizedEmail,
       password: password.value,
       invite_code: inviteCode.value,
     })
 
-    await authStore.login({ email: email.value, password: password.value })
+    await authStore.login({ email: normalizedEmail, password: password.value })
     listsStore.sync().catch(() => {})
     recipesStore.sync().catch(() => {})
     router.push('/')

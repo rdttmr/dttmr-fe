@@ -198,14 +198,16 @@ export const useGroupsStore = defineStore('groups', () => {
   }
 
   // Why a group can't be deleted right now, or null if it can. The server
-  // only deletes empty groups; checking locally first gives a clear message
-  // instead of a generic 4xx. Everything in a group I'm a member of is
-  // visible to me, so the local cache is enough to tell.
+  // refuses deletes by non-owners, of the default group, of groups with other
+  // members and of non-empty groups, but (for now) with a bare 500, so this
+  // has to catch them first to give a useful message. Everything in a group
+  // I'm a member of is visible to me, so the local cache is enough to tell.
   function deleteBlocker(groupId: string): string | null {
-    // Only owners may delete. Not enforced by the backend yet, so the
-    // frontend assumes it.
+    const group = groups.value.find((g) => g.id === groupId)
     if (myRole(groupId) !== 'owner') return 'Only the group owner can delete it.'
     if (groups.value.length <= 1) return "You can't delete your only group."
+    if (group?.is_default) return "It's your default group. Make another group the default first."
+    if ((group?.member_count ?? 1) > 1) return 'Other members are still in it.'
     const listCount = useListsStore().lists.filter((l) => l.group_id === groupId).length
     const recipeCount = useRecipesStore().recipes.filter((r) => r.group_id === groupId).length
     if (listCount + recipeCount === 0) return null
@@ -228,15 +230,18 @@ export const useGroupsStore = defineStore('groups', () => {
     if (!groups.value.some((g) => g.is_default)) void sync({ force: true })
   }
 
-  // Why the user can't leave a group right now, or null if they can. Leaving
-  // the only group would leave nowhere for new lists and recipes to go.
-  // Owners can't leave (assumed ahead of the backend enforcing it).
+  // Why the user can't leave a group right now, or null if they can. The
+  // server refuses owners and the default group, again with a bare 500.
+  // Leaving the only group would leave nowhere for new lists and recipes to go.
   function leaveBlocker(groupId: string): string | null {
     if (myRole(groupId) === 'owner') {
       return "You own this group, so you can't leave it. Delete it instead."
     }
     if (groups.value.length <= 1 && groups.value[0]?.id === groupId) {
       return "You can't leave your only group."
+    }
+    if (groups.value.find((g) => g.id === groupId)?.is_default) {
+      return "It's your default group. Make another group the default first."
     }
     return null
   }
