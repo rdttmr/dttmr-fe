@@ -541,7 +541,6 @@ function inviteDetail(invite: Invite): string {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .invite-code {
@@ -550,22 +549,18 @@ function inviteDetail(invite: Invite): string {
   font-weight: 500;
   letter-spacing: 0.08em;
   color: var(--c-heading);
-  flex: 1 1 auto;
+  /* A code is 64 hex chars, wider than the ticket: it takes whatever room
+     the status pill leaves and ellipsizes, instead of pushing the pill onto
+     its own line. */
+  flex: 1 1 0;
   min-width: 0;
-  max-width: 24ch;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-@media (min-width: 768px) {
-  .invite-code {
-    max-width: 80ch;
-  }
-}
-
 .invite-title {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   font-size: 0.92rem;
   font-weight: 600;
