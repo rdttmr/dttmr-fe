@@ -1,56 +1,52 @@
-export enum Equipment {
-  Unknown = 0,
-  Floor = 1,
-  Rings = 2,
-  PullUpBar = 3,
-  ParallelBars = 4,
-  LowBar = 5,
-  Parallettes = 6,
-  ResistanceBand = 7,
+// The API serializes these as their names. The lists are what it sends
+// today, but new values (equipment especially) may appear without notice,
+// so the fields are typed as plain strings and labelled via exerciseLabel().
+export const EQUIPMENT = [
+  'floor',
+  'rings',
+  'pull_up_bar',
+  'parallel_bars',
+  'low_bar',
+  'parallettes',
+  'resistance_band',
+] as const
+export const LOADS = ['bodyweight', 'external'] as const
+export const METRICS = ['reps', 'seconds'] as const
+
+export type Equipment = (typeof EQUIPMENT)[number]
+export type Load = (typeof LOADS)[number]
+export type Metric = (typeof METRICS)[number]
+
+const LABELS: Record<string, string> = {
+  floor: 'Floor',
+  rings: 'Rings',
+  pull_up_bar: 'Pull-up bar',
+  parallel_bars: 'Parallel bars',
+  low_bar: 'Low bar',
+  parallettes: 'Parallettes',
+  resistance_band: 'Resistance band',
+  bodyweight: 'Bodyweight',
+  external: 'External',
+  reps: 'Reps',
+  seconds: 'Seconds',
 }
 
-export enum Load {
-  Unknown = 0,
-  Bodyweight = 1,
-  External = 2,
-}
-
-export enum Metric {
-  Unknown = 0,
-  Reps = 1,
-  Seconds = 2,
-}
-
-export const EQUIPMENT_LABELS: Record<Equipment, string> = {
-  [Equipment.Unknown]: 'Unknown',
-  [Equipment.Floor]: 'Floor',
-  [Equipment.Rings]: 'Rings',
-  [Equipment.PullUpBar]: 'Pull-up bar',
-  [Equipment.ParallelBars]: 'Parallel bars',
-  [Equipment.LowBar]: 'Low bar',
-  [Equipment.Parallettes]: 'Parallettes',
-  [Equipment.ResistanceBand]: 'Resistance band',
-}
-
-export const LOAD_LABELS: Record<Load, string> = {
-  [Load.Unknown]: 'Unknown',
-  [Load.Bodyweight]: 'Bodyweight',
-  [Load.External]: 'External',
-}
-
-export const METRIC_LABELS: Record<Metric, string> = {
-  [Metric.Unknown]: 'Unknown',
-  [Metric.Reps]: 'Reps',
-  [Metric.Seconds]: 'Seconds',
+// Known values get a hand-written label; unknown ones are humanized from the
+// snake_case name ("weight_vest" -> "Weight vest") instead of being dropped.
+export function exerciseLabel(value: string): string {
+  const known = LABELS[value]
+  if (known) return known
+  const words = value.replace(/_/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 export interface Exercise {
   id: string
   name: string
   notes?: string
-  equipment?: Equipment[]
-  load?: Load
-  metric?: Metric
+  equipment?: (Equipment | (string & {}))[]
+  load?: Load | (string & {})
+  metric?: Metric | (string & {})
   tags?: string[]
   modified_at?: string
 }

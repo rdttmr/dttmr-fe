@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { Exercise } from '@/types/exercise'
 import AppIcon from '@/components/AppIcon.vue'
 import { hueFromString } from '@/utils/hue'
-import { EQUIPMENT_LABELS, LOAD_LABELS, METRIC_LABELS } from '@/types/exercise'
+import { exerciseLabel } from '@/types/exercise'
 
 const props = defineProps<{ exercise: Exercise }>()
 const emit = defineEmits<{
@@ -11,13 +11,11 @@ const emit = defineEmits<{
 }>()
 
 const equipmentLabels = computed(
-  () => props.exercise.equipment?.map((equipment) => EQUIPMENT_LABELS[equipment]) ?? [],
+  () => props.exercise.equipment?.filter(Boolean).map(exerciseLabel) ?? [],
 )
-const loadLabel = computed(() =>
-  props.exercise.load !== undefined ? LOAD_LABELS[props.exercise.load] : null,
-)
+const loadLabel = computed(() => (props.exercise.load ? exerciseLabel(props.exercise.load) : null))
 const metricLabel = computed(() =>
-  props.exercise.metric !== undefined ? METRIC_LABELS[props.exercise.metric] : null,
+  props.exercise.metric ? exerciseLabel(props.exercise.metric) : null,
 )
 
 const hue = computed(() => hueFromString(props.exercise.name))

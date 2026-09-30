@@ -77,6 +77,12 @@ async function loadMembers() {
   }
 }
 
+// Emails are case-insensitive; the server lowercases them, but tokens issued
+// before that migration may still carry the old capitalization.
+function isMe(member: GroupMember): boolean {
+  return !!authStore.email && member.email.toLowerCase() === authStore.email.toLowerCase()
+}
+
 function initial(member: GroupMember): string {
   return (member.name || member.email).trim().charAt(0).toUpperCase() || '?'
 }
@@ -255,7 +261,7 @@ async function handleConfirmDelete() {
               <span class="member-name">
                 {{ member.name || member.email }}
                 <span v-if="member.role === 'owner'" class="pill pill-accent">Owner</span>
-                <span v-if="member.email === authStore.email" class="pill">You</span>
+                <span v-if="isMe(member)" class="pill">You</span>
               </span>
               <span class="member-email">{{ member.email }}</span>
               <span v-if="joinedLabel(member)" class="member-joined">{{

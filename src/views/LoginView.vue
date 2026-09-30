@@ -19,14 +19,15 @@ const localError = ref('')
 async function handleSubmit() {
   localError.value = ''
 
-  if (!email.value || !password.value) {
+  const normalizedEmail = email.value.trim().toLowerCase()
+  if (!normalizedEmail || !password.value) {
     localError.value = 'Please enter both email and password.'
     return
   }
 
   try {
     await authStore.login({
-      email: email.value,
+      email: normalizedEmail,
       password: password.value,
     })
 
