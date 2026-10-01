@@ -1,3 +1,6 @@
+import '@fontsource-variable/bricolage-grotesque/opsz.css'
+import '@fontsource-variable/plus-jakarta-sans/wght.css'
+import '@fontsource-variable/jetbrains-mono/wght.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'
